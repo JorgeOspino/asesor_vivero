@@ -1,7 +1,7 @@
 """
 database.py
 Capa de Memoria: persistencia en SQLite.
-Crea y gestiona las tablas telemetria_diaria y boletines_semanales.
+Tablas: telemetria_diaria, boletines_semanales y notificaciones.
 """
 
 import sqlite3
@@ -42,6 +42,16 @@ def init_db() -> None:
             fecha_inicio TEXT,
             fecha_fin TEXT,
             contenido TEXT
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS notificaciones (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            canal TEXT NOT NULL,
+            tipo TEXT NOT NULL,
+            clave TEXT,
+            fecha_envio TEXT NOT NULL
         )
     """)
 
@@ -89,7 +99,7 @@ def guardar_boletin(fecha_inicio: str, fecha_fin: str, contenido: str) -> None:
 
 
 def obtener_ultimos_dias(n: int = 7):
-    """Trae los últimos n registros de telemetria_diaria (para el boletín semanal)."""
+    """Trae los últimos n registros de telemetria_diaria."""
     import pandas as pd
     conn = get_connection()
     df = pd.read_sql_query(
@@ -98,6 +108,39 @@ def obtener_ultimos_dias(n: int = 7):
     )
     conn.close()
     return df
+
+
+# --- Control de notificaciones enviadas ---
+
+def registrar_notificacion(canal: str, tipo: str, clave: str) -> None:
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO notificaciones (canal, tipo, clave, fecha_envio) VALUES (?, ?, ?, ?)",
+        (canal, tipo, clave, datetime.now(timezone.utc).isoformat()),
+    )
+    conn.commit()
+    conn.close()
+
+
+def ultima_notificacion(canal: str, tipo: str) -> dict | None:
+    conn = get_connection()
+    conn.row_factory = sqlite3.Row
+    fila = conn.execute(
+        "SELECT * FROM notificaciones WHERE canal = ? AND tipo = ? ORDER BY id DESC LIMIT 1",
+        (canal, tipo),
+    ).fetchone()
+    conn.close()
+    return dict(fila) if fila else None
+
+
+def notificacion_existe(canal: str, tipo: str, clave: str) -> bool:
+    conn = get_connection()
+    fila = conn.execute(
+        "SELECT 1 FROM notificaciones WHERE canal = ? AND tipo = ? AND clave = ? LIMIT 1",
+        (canal, tipo, clave),
+    ).fetchone()
+    conn.close()
+    return fila is not None
 
 
 if __name__ == "__main__":
