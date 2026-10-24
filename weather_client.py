@@ -42,11 +42,12 @@ def obtener_datos_estacion(
         metric = obs.get("metric", {})
 
         return {
-            "temperatura_c": float(metric.get("temp", 0.0)),
-            "precipitacion_mm": float(metric.get("precipTotal", 0.0)),
-            "radiacion_solar_wm2": float(obs.get("solarRadiation", 0.0) or 0.0),
-            "rafaga_viento_kmh": float(metric.get("windGust", 0.0)),
-            "humedad_relativa_pct": float(obs.get("humidity", 0.0)),
+            "temperatura_c": float(metric.get("temp") or 0.0),
+            "precipitacion_mm": float(metric.get("precipTotal") or 0.0),
+            "radiacion_solar_wm2": float(obs.get("solarRadiation") or 0.0),
+            "rafaga_viento_kmh": float(metric.get("windGust") or 0.0),
+            "direccion_viento_grados": int(obs.get("winddir") or 0),
+            "humedad_relativa_pct": float(obs.get("humidity") or 0.0),
         }
     except Exception as e:
         raise RuntimeError(
