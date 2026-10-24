@@ -12,7 +12,6 @@ from zoneinfo import ZoneInfo
 import psycopg2
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, status
-from pydantic import BaseModel
 from rules_engine import evaluar_reglas_riego
 from weather_client import obtener_datos_estacion
 
@@ -53,7 +52,6 @@ def guardar_en_neon(telemetria: dict, decision: dict):
     if not DATABASE_URL:
         raise ValueError("DATABASE_URL no configurada.")
 
-    # Generación explícita de hora en Colombia (UTC-5)
     fecha_colombia = datetime.now(ZoneInfo("America/Bogota"))
 
     conn = psycopg2.connect(DATABASE_URL)
@@ -75,14 +73,14 @@ def guardar_en_neon(telemetria: dict, decision: dict):
 
     valores = (
         fecha_colombia,
-        telemetria["temperatura_c"],
-        telemetria["precipitacion_mm"],
-        telemetria["radiacion_solar_wm2"],
-        telemetria["rafaga_viento_kmh"],
-        telemetria["humedad_relativa_pct"],
-        decision["orden_riego"],
-        decision["regla_aplicada"],
-        decision["mensaje"],
+        telemetria.get("temperatura_c", 0.0),
+        telemetria.get("precipitacion_mm", 0.0),
+        telemetria.get("radiacion_solar_wm2", 0.0),
+        telemetria.get("rafaga_viento_kmh", 0.0),
+        telemetria.get("humedad_relativa_pct", 0.0),
+        decision.get("orden_riego", False),
+        decision.get("regla_aplicada", "Sin regla"),
+        decision.get("mensaje", ""),
     )
 
     cursor.execute(query, valores)
@@ -95,6 +93,7 @@ def guardar_en_neon(telemetria: dict, decision: dict):
 def estado_api():
     """Endpoint de comprobación de estado."""
     return {"status": "ok", "servicio": "API Telemétrica CECAR activa"}
+
 
 @app.post("/ejecutar-flujo")
 def ejecutar_flujo_webhook(autorizado: bool = Depends(verificar_token)):
@@ -111,13 +110,13 @@ def ejecutar_flujo_webhook(autorizado: bool = Depends(verificar_token)):
                 ZoneInfo("America/Bogota")
             ).strftime("%Y-%m-%d %H:%M:%S"),
             "datos_registrados": {
-                "temperatura_c": telemetria["temperatura_c"],
-                "humedad_relativa_pct": telemetria["humedad_relativa_pct"],
-                "precipitacion_mm": telemetria["precipitacion_mm"],
-                "rafaga_viento_kmh": telemetria["rafaga_viento_kmh"],
-                "radiacion_solar_wm2": telemetria["radiacion_solar_wm2"],
-                "orden_riego": decision["orden_riego"],
-                "regla_aplicada": decision["regla_aplicada"],
+                "temperatura_c": telemetria.get("temperatura_c", 0.0),
+                "humedad_relativa_pct": telemetria.get("humedad_relativa_pct", 0.0),
+                "precipitacion_mm": telemetria.get("precipitacion_mm", 0.0),
+                "rafaga_viento_kmh": telemetria.get("rafaga_viento_kmh", 0.0),
+                "radiacion_solar_wm2": telemetria.get("radiacion_solar_wm2", 0.0),
+                "orden_riego": decision.get("orden_riego", False),
+                "regla_aplicada": decision.get("regla_aplicada", ""),
             },
         }
     except Exception as e:
