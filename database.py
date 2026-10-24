@@ -1,148 +1,186 @@
 """
 database.py
-Capa de Memoria: persistencia en SQLite.
-Tablas: telemetria_diaria, boletines_semanales y notificaciones.
+Capa de Persistencia para el Vivero CECAR.
+Soporta PostgreSQL (Neon) como motor cloud principal y SQLite como respaldo local.
 """
 
 import sqlite3
-from datetime import datetime, timezone
-from config import DB_PATH
+import pandas as pd
+from config import DATABASE_URL, DB_PATH
+
+# Importación condicional de psycopg2 para PostgreSQL
+try:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+    HAS_PSYCOPG2 = True
+except ImportError:
+    HAS_PSYCOPG2 = False
 
 
-def get_connection() -> sqlite3.Connection:
+def get_connection():
+    """Devuelve una conexión a PostgreSQL (Neon) o a SQLite local."""
+    if DATABASE_URL and HAS_PSYCOPG2:
+        return psycopg2.connect(DATABASE_URL)
     return sqlite3.connect(DB_PATH)
 
 
-def init_db() -> None:
-    """Crea las tablas si no existen. Seguro de llamar varias veces."""
+def _es_postgres(conn) -> bool:
+    """Detecta si la conexión activa pertenece a PostgreSQL."""
+    return HAS_PSYCOPG2 and isinstance(conn, psycopg2.extensions.connection)
+
+
+def init_db():
+    """Crea la estructura de tablas e índices en la base de datos si no existen."""
     conn = get_connection()
-    cur = conn.cursor()
+    cursor = conn.cursor()
 
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS telemetria_diaria (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            fecha_registro TEXT NOT NULL,
-            timestamp_utc TEXT,
-            precipitacion_mm REAL,
-            temperatura_c REAL,
-            radiacion_solar_wm2 REAL,
-            rafaga_viento_kmh REAL,
-            humedad_relativa_pct REAL,
-            regla_aplicada TEXT,
-            orden_riego TEXT,
-            alerta INTEGER,
-            mensaje TEXT
-        )
-    """)
+    try:
+        if _es_postgres(conn):
+            # Tablas para PostgreSQL (Neon)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS telemetria_diaria (
+                    id SERIAL PRIMARY KEY,
+                    fecha_registro TIMESTAMPTZ NOT NULL,
+                    temperatura_c REAL,
+                    precipitacion_mm REAL,
+                    radiacion_solar_wm2 REAL,
+                    rafaga_viento_kmh REAL,
+                    humedad_relativa_pct REAL,
+                    regla_aplicada VARCHAR(100),
+                    orden_riego VARCHAR(100),
+                    alerta BOOLEAN,
+                    mensaje TEXT
+                );
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS notificaciones (
+                    id SERIAL PRIMARY KEY,
+                    fecha_envio TIMESTAMPTZ NOT NULL,
+                    canal VARCHAR(50),
+                    tipo VARCHAR(50),
+                    clave VARCHAR(100)
+                );
+            """)
+        else:
+            # Tablas para SQLite (Local)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS telemetria_diaria (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    fecha_registro TEXT NOT NULL,
+                    temperatura_c REAL,
+                    precipitacion_mm REAL,
+                    radiacion_solar_wm2 REAL,
+                    rafaga_viento_kmh REAL,
+                    humedad_relativa_pct REAL,
+                    regla_aplicada TEXT,
+                    orden_riego TEXT,
+                    alerta BOOLEAN,
+                    mensaje TEXT
+                );
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS notificaciones (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    fecha_envio TEXT NOT NULL,
+                    canal TEXT,
+                    tipo TEXT,
+                    clave TEXT
+                );
+            """)
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
 
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS boletines_semanales (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            fecha_generacion TEXT NOT NULL,
-            fecha_inicio TEXT,
-            fecha_fin TEXT,
-            contenido TEXT
-        )
-    """)
 
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS notificaciones (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            canal TEXT NOT NULL,
-            tipo TEXT NOT NULL,
-            clave TEXT,
-            fecha_envio TEXT NOT NULL
-        )
-    """)
-
-    conn.commit()
-    conn.close()
-
-
-def guardar_telemetria(fila: dict) -> None:
-    """Inserta una fila ya evaluada (salida de rules_engine) en telemetria_diaria."""
+def guardar_telemetria(datos: dict):
+    """Persiste una lectura telemétrica en la base de datos activa."""
     conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("""
+    cursor = conn.cursor()
+
+    ahora = pd.Timestamp.now(tz="UTC").isoformat()
+    postgres = _es_postgres(conn)
+    placeholder = "%s" if postgres else "?"
+
+    query = f"""
         INSERT INTO telemetria_diaria (
-            fecha_registro, timestamp_utc, precipitacion_mm, temperatura_c,
-            radiacion_solar_wm2, rafaga_viento_kmh, humedad_relativa_pct,
-            regla_aplicada, orden_riego, alerta, mensaje
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        datetime.now(timezone.utc).isoformat(),
-        fila.get("timestamp_utc"),
-        fila.get("precipitacion_mm"),
-        fila.get("temperatura_c"),
-        fila.get("radiacion_solar_wm2"),
-        fila.get("rafaga_viento_kmh"),
-        fila.get("humedad_relativa_pct"),
-        fila.get("regla"),
-        fila.get("orden_riego"),
-        int(fila.get("alerta", False)),
-        fila.get("mensaje"),
-    ))
-    conn.commit()
-    conn.close()
-
-
-def guardar_boletin(fecha_inicio: str, fecha_fin: str, contenido: str) -> None:
-    """Inserta un boletín ejecutivo generado por el agente de IA semanal."""
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO boletines_semanales (fecha_generacion, fecha_inicio, fecha_fin, contenido)
-        VALUES (?, ?, ?, ?)
-    """, (datetime.now(timezone.utc).isoformat(), fecha_inicio, fecha_fin, contenido))
-    conn.commit()
-    conn.close()
-
-
-def obtener_ultimos_dias(n: int = 7):
-    """Trae los últimos n registros de telemetria_diaria."""
-    import pandas as pd
-    conn = get_connection()
-    df = pd.read_sql_query(
-        "SELECT * FROM telemetria_diaria ORDER BY fecha_registro DESC LIMIT ?",
-        conn, params=(n,)
+            fecha_registro, temperatura_c, precipitacion_mm, radiacion_solar_wm2,
+            rafaga_viento_kmh, humedad_relativa_pct, regla_aplicada, orden_riego,
+            alerta, mensaje
+        ) VALUES ({', '.join([placeholder] * 10)});
+    """
+    valores = (
+        ahora,
+        datos.get("temperatura_c"),
+        datos.get("precipitacion_mm"),
+        datos.get("radiacion_solar_wm2"),
+        datos.get("rafaga_viento_kmh"),
+        datos.get("humedad_relativa_pct"),
+        datos.get("regla"),
+        datos.get("orden_riego"),
+        bool(datos.get("alerta", False)),
+        datos.get("mensaje"),
     )
-    conn.close()
-    return df
 
-
-# --- Control de notificaciones enviadas ---
-
-def registrar_notificacion(canal: str, tipo: str, clave: str) -> None:
-    conn = get_connection()
-    conn.execute(
-        "INSERT INTO notificaciones (canal, tipo, clave, fecha_envio) VALUES (?, ?, ?, ?)",
-        (canal, tipo, clave, datetime.now(timezone.utc).isoformat()),
-    )
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute(query, valores)
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def ultima_notificacion(canal: str, tipo: str) -> dict | None:
+    """Recupera el último registro de notificación según canal y tipo."""
     conn = get_connection()
-    conn.row_factory = sqlite3.Row
-    fila = conn.execute(
-        "SELECT * FROM notificaciones WHERE canal = ? AND tipo = ? ORDER BY id DESC LIMIT 1",
-        (canal, tipo),
-    ).fetchone()
-    conn.close()
-    return dict(fila) if fila else None
+    postgres = _es_postgres(conn)
+    placeholder = "%s" if postgres else "?"
+
+    query = f"""
+        SELECT fecha_envio, canal, tipo, clave
+        FROM notificaciones
+        WHERE canal = {placeholder} AND tipo = {placeholder}
+        ORDER BY fecha_envio DESC
+        LIMIT 1;
+    """
+
+    try:
+        if postgres:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor.execute(query, (canal, tipo))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+        else:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(query, (canal, tipo))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+    finally:
+        conn.close()
 
 
-def notificacion_existe(canal: str, tipo: str, clave: str) -> bool:
+def registrar_notificacion(canal: str, tipo: str, clave: str):
+    """Guarda un registro de envío de notificación en el historial."""
     conn = get_connection()
-    fila = conn.execute(
-        "SELECT 1 FROM notificaciones WHERE canal = ? AND tipo = ? AND clave = ? LIMIT 1",
-        (canal, tipo, clave),
-    ).fetchone()
-    conn.close()
-    return fila is not None
+    cursor = conn.cursor()
+    ahora = pd.Timestamp.now(tz="UTC").isoformat()
+    postgres = _es_postgres(conn)
+    placeholder = "%s" if postgres else "?"
+
+    query = f"""
+        INSERT INTO notificaciones (fecha_envio, canal, tipo, clave)
+        VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder});
+    """
+
+    try:
+        cursor.execute(query, (ahora, canal, tipo, clave))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
 
 
 if __name__ == "__main__":
     init_db()
-    print(f"Base de datos inicializada en: {DB_PATH}")
+    print("Tablas verificadas e inicializadas en la base de datos.")

@@ -36,10 +36,15 @@ TELEGRAM_BOT_TOKEN = _get_env("TELEGRAM_BOT_TOKEN", required=False)
 TELEGRAM_CHAT_IDS = _get_env("TELEGRAM_CHAT_IDS", required=False)  # ids separados por coma
 
 # --- Base de datos ---
-DB_PATH = _get_env("DB_PATH", required=False, default="vivero_cecar.db")
+DATABASE_URL = _get_env("DATABASE_URL", required=False)  # Neon PostgreSQL
+DB_PATH = _get_env("DB_PATH", required=False, default="vivero_cecar.db")  # Respaldo local SQLite
 
 
 if __name__ == "__main__":
     print("Configuración cargada correctamente:")
     print(f"  WU_STATION_ID = {WU_STATION_ID}")
     print(f"  WU_API_KEY    = {'*' * (len(WU_API_KEY) - 4) + WU_API_KEY[-4:]}")
+    if DATABASE_URL:
+        print("  Motor de DB   = PostgreSQL (Neon)")
+    else:
+        print(f"  Motor de DB   = SQLite local ({DB_PATH})")
