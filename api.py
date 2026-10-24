@@ -96,7 +96,6 @@ def estado_api():
     """Endpoint de comprobación de estado."""
     return {"status": "ok", "servicio": "API Telemétrica CECAR activa"}
 
-
 @app.post("/ejecutar-flujo")
 def ejecutar_flujo_webhook(autorizado: bool = Depends(verificar_token)):
     """Endpoint consumido por n8n para desencadenar la lectura e inserción telemétrica."""
