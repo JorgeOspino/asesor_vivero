@@ -113,6 +113,10 @@ def ejecutar_flujo_webhook(autorizado: bool = Depends(verificar_token)):
             ).strftime("%Y-%m-%d %H:%M:%S"),
             "datos_registrados": {
                 "temperatura_c": telemetria["temperatura_c"],
+                "humedad_relativa_pct": telemetria["humedad_relativa_pct"],
+                "precipitacion_mm": telemetria["precipitacion_mm"],
+                "rafaga_viento_kmh": telemetria["rafaga_viento_kmh"],
+                "radiacion_solar_wm2": telemetria["radiacion_solar_wm2"],
                 "orden_riego": decision["orden_riego"],
                 "regla_aplicada": decision["regla_aplicada"],
             },
