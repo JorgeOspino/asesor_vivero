@@ -157,17 +157,16 @@ def cargar_datos():
 # --- BARRA LATERAL ---
 st.sidebar.markdown("### Configuración del Asistente IA")
 
-MODELOS_DISPONIBLES = {
-    "Llama 3.3 70B (Alta Precisión)": "llama-3.3-70b-versatile",
-    "Llama 3.1 8B (Respuesta Rápida)": "llama-3.1-8b-instant",
-    "Mixtral 8x7B (Análisis Contextual)": "mixtral-8x7b-32768",
-    "Gemma 2 9B (Google)": "gemma2-9b-it",
-}
-
-nombre_modelo_sel = st.sidebar.selectbox(
-    "Modelo de Lenguaje Activo:", list(MODELOS_DISPONIBLES.keys())
+# En dashboard.py
+modelo_seleccionado = st.sidebar.selectbox(
+    "Modelo de Lenguaje Activo:",
+    [
+        "llama-3.1-8b-instant",
+        "mixtral-8x7b-32768",
+    ],  # Usa modelos activos en Groq
 )
-modelo_groq_id = MODELOS_DISPONIBLES[nombre_modelo_sel]
+
+
 
 # --- ENCABEZADO ---
 st.markdown(
