@@ -1,16 +1,17 @@
-"""
-dashboard.py
+"""dashboard.py
+
 Panel telemétrico interactivo y Asistente IA para el Vivero CECAR.
-Diseño ejecutivo profesional sin emojis y sincronización de zona horaria para Colombia (America/Bogota).
+Diseño ejecutivo profesional sin emojis y sincronización de zona horaria
+para Colombia (America/Bogota).
 """
 
 import os
+from dotenv import load_dotenv
+from groq import Groq
 import pandas as pd
 import plotly.express as px
 import psycopg2
 import streamlit as st
-from dotenv import load_dotenv
-from groq import Groq
 
 # Cargar variables de entorno
 load_dotenv()
@@ -123,7 +124,7 @@ st.markdown(CSS_PROFESIONAL, unsafe_allow_html=True)
 def cargar_datos():
     """Consulta Neon y ajusta la hora de UTC a Colombia (America/Bogota)."""
     if not DATABASE_URL:
-        st.error("DATABASE_URL no está configurada.")
+        st.error("DATABASE_URL no está configurada en los Secrets o .env.")
         return pd.DataFrame()
 
     try:
@@ -157,15 +158,20 @@ def cargar_datos():
 # --- BARRA LATERAL ---
 st.sidebar.markdown("### Configuración del Asistente IA")
 
-# En dashboard.py
-modelo_seleccionado = st.sidebar.selectbox(
+OPCIONES_MODELOS = {
+    "Mixtral 8x7B (Mistral AI)": "mixtral-8x7b-32768",
+    "Gemma 2 9B (Google)": "gemma2-9b-it",
+    "Llama 3.1 8B Instant": "llama-3.1-8b-instant",
+}
+
+modelo_label = st.sidebar.selectbox(
     "Modelo de Lenguaje Activo:",
-    [
-        "llama-3.1-8b-instant",
-        "mixtral-8x7b-32768",
-    ],  # Usa modelos activos en Groq
+    list(OPCIONES_MODELOS.keys()),
+    index=0,  # Mixtral 8x7B por defecto
 )
 
+# Definición correcta de la variable usada en la llamada a la API
+modelo_groq_id = OPCIONES_MODELOS[modelo_label]
 
 
 # --- ENCABEZADO ---
@@ -207,12 +213,26 @@ with tab_monitoreo:
         col4.metric("Radiación Solar", f"{ultima['radiacion_solar_wm2']} W/m²")
         col5.metric("Velocidad Viento", f"{ultima['rafaga_viento_kmh']} km/h")
 
-        if ultima["orden_riego"]:
+        # Validación robusta de booleano vs string
+        orden_val = ultima.get("orden_riego")
+        if isinstance(orden_val, bool):
+            riego_activo = orden_val
+        else:
+            riego_activo = str(orden_val).strip().lower() not in [
+                "false",
+                "0",
+                "none",
+                "off",
+                "no",
+                "",
+            ]
+
+        if riego_activo:
             st.markdown(
                 f"""
                 <div class="status-card-active">
                     <div class="status-title">ORDEN DE RIEGO ACTIVA</div>
-                    <div class="status-desc">Regla Aplicada: <b>{ultima['regla_aplicada']}</b> — {ultima['mensaje']}</div>
+                    <div class="status-desc">Regla Aplicada: <b>{ultima.get('regla_aplicada', 'N/A')}</b> — {ultima.get('mensaje', '')}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -222,7 +242,7 @@ with tab_monitoreo:
                 f"""
                 <div class="status-card-inactive">
                     <div class="status-title">SISTEMA EN REPOSO — RIEGO DESACTIVADO</div>
-                    <div class="status-desc">Regla Aplicada: <b>{ultima['regla_aplicada']}</b> — {ultima['mensaje']}</div>
+                    <div class="status-desc">Regla Aplicada: <b>{ultima.get('regla_aplicada', 'N/A')}</b> — {ultima.get('mensaje', '')}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -296,7 +316,9 @@ with tab_asistente:
                 st.markdown(message["content"])
 
         if prompt := st.chat_input("Escriba su consulta agrónoma..."):
-            st.session_state.messages.append({"role": "user", "content": prompt})
+            st.session_state.messages.append(
+                {"role": "user", "content": prompt}
+            )
             with st.chat_message("user"):
                 st.markdown(prompt)
 
@@ -307,7 +329,7 @@ with tab_asistente:
                     f"Lectura ({u['fecha_registro']}): "
                     f"Temperatura: {u['temperatura_c']}°C, Precipitación: {u['precipitacion_mm']}mm, "
                     f"Humedad Relativa: {u['humedad_relativa_pct']}%, Radiación Solar: {u['radiacion_solar_wm2']}W/m², "
-                    f"Estado Riego: {u['orden_riego']}, Regla: {u['regla_aplicada']}, Diagnóstico: {u['mensaje']}."
+                    f"Estado Riego: {u.get('orden_riego', 'N/A')}, Regla: {u.get('regla_aplicada', 'N/A')}, Diagnóstico: {u.get('mensaje', '')}."
                 )
 
             system_prompt = (
@@ -335,4 +357,6 @@ with tab_asistente:
                         {"role": "assistant", "content": respuesta}
                     )
                 except Exception as e:
-                    st.error(f"Error al procesar la solicitud con el modelo: {e}")
+                    st.error(
+                        f"Error al procesar la solicitud con el modelo: {e}"
+                    )
