@@ -7,32 +7,30 @@ la base de datos solo como historial.
 
 import pandas as pd
 import requests
-from groq import Groq
 from config import GROQ_API_KEY
 from database import get_connection
-from weather_client import get_current_observation
+from groq import Groq
 from rules_engine import (
-    evaluar_regla,
-    UMBRAL_VIENTO_PELIGRO_KMH,
-    UMBRAL_LLUVIA_SUPRESION_MM,
-    UMBRAL_TEMP_ESTRES_C,
     UMBRAL_HUMEDAD_ESTRES_PCT,
+    UMBRAL_LLUVIA_SUPRESION_MM,
     UMBRAL_RADIACION_ESTRES_WM2,
+    UMBRAL_TEMP_ESTRES_C,
+    UMBRAL_VIENTO_PELIGRO_KMH,
+    evaluar_regla,
 )
+from weather_client import get_current_observation
 
-
-# Lista de modelos activos en la API de Groq
-# Lista de modelos de producción activos y vigentes en Groq
+# Lista de modelos de producción activos y vigentes en la API de Groq
 MODELOS_FALLBACK = [
-    "llama-3.1-8b-instant",     # Estable, ultra rápido y con mayor cuota en el plan gratuito
-    "openai/gpt-oss-120b",      # Modelo de alta capacidad para respuestas complejas
-    "openai/gpt-oss-20b",       # Modelo rápido y balanceado
-    "llama-3.3-70b-versatile",  # Modelo de alta precisión
+    "llama-3.3-70b-versatile",  # Modelo principal de alta precisión
+    "llama-3.1-8b-instant",  # Respaldo ultra rápido y de alta cuota
+    "mixtral-8x7b-32768",  # Respaldo alternativo
+    "gemma2-9b-it",  # Respaldo secundario
 ]
 MAX_MENSAJES_HISTORIAL = 10
 ZONA = "America/Bogota"
-HORAS_VIVO_VIEJO = 1       # Si la estación reporta algo más viejo, se advierte
-HORAS_GUARDADO_VIEJO = 3   # Para la lectura guardada usada como respaldo
+HORAS_VIVO_VIEJO = 1  # Si la estación reporta algo más viejo, se advierte
+HORAS_GUARDADO_VIEJO = 3  # Para la lectura guardada usada como respaldo
 
 
 def _antiguedad(ts: pd.Timestamp, ahora: pd.Timestamp) -> tuple[float, str]:
@@ -42,20 +40,25 @@ def _antiguedad(ts: pd.Timestamp, ahora: pd.Timestamp) -> tuple[float, str]:
     return horas, f"hace {horas:.1f} horas"
 
 
-def _bloque_lectura(titulo: str, ts: pd.Timestamp, ahora: pd.Timestamp, d: dict,
-                    limite_horas: float) -> str:
+def _bloque_lectura(
+    titulo: str,
+    ts: pd.Timestamp,
+    ahora: pd.Timestamp,
+    d: dict,
+    limite_horas: float,
+) -> str:
     horas, texto = _antiguedad(ts, ahora)
     bloque = (
         f"{titulo}\n"
         f"- Fecha y hora: {ts.strftime('%d/%m/%Y %H:%M')} (Bogotá), {texto}\n"
-        f"- Temperatura: {d['temperatura_c']} C\n"
-        f"- Precipitación acumulada: {d['precipitacion_mm']} mm\n"
-        f"- Humedad relativa: {d['humedad_relativa_pct']} %\n"
-        f"- Ráfaga de viento: {d['rafaga_viento_kmh']} km/h\n"
-        f"- Radiación solar: {d['radiacion_solar_wm2']} W/m2\n"
-        f"- Regla aplicada: {d['regla']}\n"
-        f"- Orden de riego: {d['orden_riego']}\n"
-        f"- Mensaje: {d['mensaje']}"
+        f"- Temperatura: {d.get('temperatura_c', 0.0)} C\n"
+        f"- Precipitación acumulada: {d.get('precipitacion_mm', 0.0)} mm\n"
+        f"- Humedad relativa: {d.get('humedad_relativa_pct', 0.0)} %\n"
+        f"- Ráfaga de viento: {d.get('rafaga_viento_kmh', 0.0)} km/h\n"
+        f"- Radiación solar: {d.get('radiacion_solar_wm2', 0.0)} W/m2\n"
+        f"- Regla aplicada: {d.get('regla', 'N/A')}\n"
+        f"- Orden de riego: {d.get('orden_riego', 'N/A')}\n"
+        f"- Mensaje: {d.get('mensaje', '')}"
     )
     if horas > limite_horas:
         bloque += (
@@ -69,11 +72,24 @@ def _lectura_en_vivo(ahora: pd.Timestamp) -> tuple[str | None, str | None]:
     """Consulta la estación ahora mismo. Devuelve (bloque_texto, error)."""
     try:
         obs = get_current_observation()
-    except (ValueError, TimeoutError, requests.RequestException) as e:
+    except (ValueError, TimeoutError, requests.RequestException, Exception) as e:
         return None, str(e)
 
-    evaluacion = evaluar_regla(pd.Series(obs))
-    datos = {**obs, **evaluacion.to_dict()}
+    try:
+        evaluacion = evaluar_regla(pd.Series(obs))
+        datos_eval = (
+            evaluacion.to_dict()
+            if hasattr(evaluacion, "to_dict")
+            else evaluacion
+        )
+        datos = {**obs, **datos_eval}
+    except Exception as e:
+        datos = {
+            **obs,
+            "regla": "Regla 3 - Nominal",
+            "orden_riego": "RIEGO ESTÁNDAR",
+            "mensaje": f"Evaluación por defecto ({e})",
+        }
 
     ts_utc = obs.get("timestamp_utc")
     ts = pd.to_datetime(ts_utc, utc=True).tz_convert(ZONA) if ts_utc else ahora
@@ -81,33 +97,54 @@ def _lectura_en_vivo(ahora: pd.Timestamp) -> tuple[str | None, str | None]:
     bloque = _bloque_lectura(
         "LECTURA EN VIVO (consultada a la estación en este momento; usa ESTA para "
         "preguntas sobre hoy, ahora o el estado actual):",
-        ts, ahora, datos, HORAS_VIVO_VIEJO,
+        ts,
+        ahora,
+        datos,
+        HORAS_VIVO_VIEJO,
     )
     return bloque, None
 
 
 def _cargar_guardadas() -> pd.DataFrame:
-    conn = get_connection()
     try:
-        df = pd.read_sql_query(
-            "SELECT fecha_registro, temperatura_c, precipitacion_mm, humedad_relativa_pct, "
-            "rafaga_viento_kmh, radiacion_solar_wm2, regla_aplicada AS regla, orden_riego, mensaje "
-            "FROM telemetria_diaria WHERE temperatura_c IS NOT NULL "
-            "ORDER BY fecha_registro DESC LIMIT 20",
-            conn,
-        )
-    finally:
-        conn.close()
+        conn = get_connection()
+        try:
+            try:
+                df = pd.read_sql_query(
+                    "SELECT fecha_registro, temperatura_c, precipitacion_mm, humedad_relativa_pct, "
+                    "rafaga_viento_kmh, radiacion_solar_wm2, regla_aplicada AS regla, orden_riego, mensaje "
+                    "FROM telemetria_diaria WHERE temperatura_c IS NOT NULL "
+                    "ORDER BY fecha_registro DESC LIMIT 20",
+                    conn,
+                )
+            except Exception:
+                df = pd.read_sql_query(
+                    "SELECT fecha_registro, temperatura_c, precipitacion_mm, humedad_relativa_pct, "
+                    "rafaga_viento_kmh, radiacion_solar_wm2, regla_aplicada AS regla, orden_riego, mensaje "
+                    "FROM telemetria WHERE temperatura_c IS NOT NULL "
+                    "ORDER BY fecha_registro DESC LIMIT 20",
+                    conn,
+                )
+        finally:
+            conn.close()
 
-    if not df.empty:
-        df["fecha_registro"] = pd.to_datetime(df["fecha_registro"], utc=True).dt.tz_convert(ZONA)
-        df = df.sort_values("fecha_registro", ascending=False).reset_index(drop=True)
-    return df
+        if not df.empty:
+            df["fecha_registro"] = pd.to_datetime(
+                df["fecha_registro"], utc=True
+            ).dt.tz_convert(ZONA)
+            df = df.sort_values(
+                "fecha_registro", ascending=False
+            ).reset_index(drop=True)
+        return df
+    except Exception:
+        return pd.DataFrame()
 
 
 def _contexto_datos() -> str:
     ahora = pd.Timestamp.now(tz=ZONA)
-    partes = [f"FECHA Y HORA ACTUAL (Bogotá): {ahora.strftime('%d/%m/%Y %H:%M')}"]
+    partes = [
+        f"FECHA Y HORA ACTUAL (Bogotá): {ahora.strftime('%d/%m/%Y %H:%M')}"
+    ]
 
     guardadas = _cargar_guardadas()
     vivo, error = _lectura_en_vivo(ahora)
@@ -121,21 +158,33 @@ def _contexto_datos() -> str:
             f"Se usa la última lectura guardada; indícalo claramente al responder."
         )
         u = guardadas.iloc[0]
-        partes.append(_bloque_lectura(
-            "ÚLTIMA LECTURA GUARDADA (no es en vivo):",
-            u["fecha_registro"], ahora, u.to_dict(), HORAS_GUARDADO_VIEJO,
-        ))
+        partes.append(
+            _bloque_lectura(
+                "ÚLTIMA LECTURA GUARDADA (no es en vivo):",
+                u["fecha_registro"],
+                ahora,
+                u.to_dict(),
+                HORAS_GUARDADO_VIEJO,
+            )
+        )
         historial = guardadas.iloc[1:]
     else:
-        partes.append(f"No se pudo consultar la estación ({error}) y no hay lecturas guardadas.")
+        partes.append(
+            f"No se pudo consultar la estación ({error}) y no hay lecturas guardadas."
+        )
         return "\n\n".join(partes)
 
     if not historial.empty:
         h = historial.copy()
-        h["fecha_registro"] = h["fecha_registro"].dt.strftime("%d/%m/%Y %H:%M")
+        h["fecha_registro"] = h["fecha_registro"].dt.strftime(
+            "%d/%m/%Y %H:%M"
+        )
         partes.append(
             "HISTORIAL DE LECTURAS GUARDADAS (solo para tendencias; de la más reciente a la "
-            "más antigua, hora de Bogotá):\n" + h.drop(columns=["mensaje"]).to_string(index=False)
+            "más antigua, hora de Bogotá):\n"
+            + h.drop(columns=["mensaje"], errors="ignore").to_string(
+                index=False
+            )
         )
     return "\n\n".join(partes)
 
@@ -164,9 +213,9 @@ Instrucciones:
 
 
 def responder(historial: list[dict]) -> str:
-    """
-    Recibe el historial [{'role': 'user'|'assistant', 'content': str}] 
-    e intenta generar la respuesta iterando sobre una lista de modelos 
+    """Recibe el historial [{'role': 'user'|'assistant', 'content': str}]
+
+    e intenta generar la respuesta iterando sobre una lista de modelos
     hasta encontrar uno disponible.
     """
     if not GROQ_API_KEY:
