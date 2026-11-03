@@ -23,9 +23,9 @@ from weather_client import get_current_observation
 # Lista de modelos de producción activos y vigentes en la API de Groq
 MODELOS_FALLBACK = [
     "llama-3.3-70b-versatile",  # Modelo principal de alta precisión
-    "llama-3.1-8b-instant",  # Respaldo ultra rápido y de alta cuota
-    "mixtral-8x7b-32768",  # Respaldo alternativo
-    "gemma2-9b-it",  # Respaldo secundario
+    "llama-3.1-8b-instant",     # Respaldo ultra rápido y de alta cuota
+    "openai/gpt-oss-120b",      # Respaldo alternativo
+    "openai/gpt-oss-20b",       # Respaldo secundario
 ]
 MAX_MENSAJES_HISTORIAL = 10
 ZONA = "America/Bogota"

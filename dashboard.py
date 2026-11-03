@@ -158,19 +158,20 @@ def cargar_datos():
 # --- BARRA LATERAL ---
 st.sidebar.markdown("### Configuración del Asistente IA")
 
+# Modelos vigentes en Groq (mixtral-8x7b-32768 y gemma2-9b-it fueron retirados)
 OPCIONES_MODELOS = {
-    "Mixtral 8x7B (Mistral AI)": "mixtral-8x7b-32768",
-    "Gemma 2 9B (Google)": "gemma2-9b-it",
+    "Llama 3.3 70B Versatile": "llama-3.3-70b-versatile",
     "Llama 3.1 8B Instant": "llama-3.1-8b-instant",
+    "GPT-OSS 120B (OpenAI)": "openai/gpt-oss-120b",
+    "GPT-OSS 20B (OpenAI)": "openai/gpt-oss-20b",
 }
 
 modelo_label = st.sidebar.selectbox(
     "Modelo de Lenguaje Activo:",
     list(OPCIONES_MODELOS.keys()),
-    index=0,  # Mixtral 8x7B por defecto
+    index=0,  # Llama 3.3 70B por defecto
 )
 
-# Definición correcta de la variable usada en la llamada a la API
 modelo_groq_id = OPCIONES_MODELOS[modelo_label]
 
 
