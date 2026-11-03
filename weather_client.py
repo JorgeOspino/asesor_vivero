@@ -1,6 +1,7 @@
 """
 weather_client.py
 Módulo cliente para la lectura telemétrica de la estación meteorológica en Weather Underground.
+La radiación solar y el UV se estiman con Open-Meteo (la estación no tiene esos sensores).
 """
 
 import os
@@ -11,6 +12,32 @@ load_dotenv()
 
 WU_API_KEY = os.getenv("WU_API_KEY")
 WU_STATION_ID = os.getenv("WU_STATION_ID")
+
+# Coordenadas del vivero (ajústalas a las reales o defínelas en .env)
+VIVERO_LAT = float(os.getenv("VIVERO_LAT", "9.30"))
+VIVERO_LON = float(os.getenv("VIVERO_LON", "-75.40"))
+
+
+def obtener_radiacion_open_meteo(
+    lat: float = VIVERO_LAT, lon: float = VIVERO_LON
+) -> dict:
+    """Estima radiación solar (W/m2) e índice UV con el modelo de Open-Meteo."""
+    r = requests.get(
+        "https://api.open-meteo.com/v1/forecast",
+        params={
+            "latitude": lat,
+            "longitude": lon,
+            "current": "shortwave_radiation,uv_index",
+            "timezone": "America/Bogota",
+        },
+        timeout=10,
+    )
+    r.raise_for_status()
+    c = r.json()["current"]
+    return {
+        "radiacion_solar_wm2": float(c.get("shortwave_radiation") or 0.0),
+        "uv_index": float(c.get("uv_index") or 0.0),
+    }
 
 
 def obtener_datos_estacion(
@@ -41,7 +68,7 @@ def obtener_datos_estacion(
         obs = data["observations"][0]
         metric = obs.get("metric", {})
 
-        return {
+        datos = {
             "temperatura_c": float(metric.get("temp") or 0.0),
             "precipitacion_mm": float(metric.get("precipTotal") or 0.0),
             "radiacion_solar_wm2": float(obs.get("solarRadiation") or 0.0),
@@ -53,6 +80,15 @@ def obtener_datos_estacion(
         raise RuntimeError(
             f"Error al obtener datos telemétricos de la estación: {e}"
         )
+
+    # La SA7 no mide radiación: si la estación reporta 0, se usa Open-Meteo
+    if datos["radiacion_solar_wm2"] == 0.0:
+        try:
+            datos.update(obtener_radiacion_open_meteo())
+        except Exception:
+            pass  # si falla, se conserva el valor de la estación
+
+    return datos
 
 
 def get_current_observation() -> dict:
