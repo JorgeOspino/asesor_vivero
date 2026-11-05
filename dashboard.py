@@ -374,24 +374,45 @@ CSS_PROFESIONAL = """
         .riego-card { flex-direction: column; align-items: flex-start; }
     }
 
-    /* Pestañas */
+    /* Pestañas: barra tipo control segmentado */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 12px;
-        border-bottom: 2px solid #1e293b;
-        padding-bottom: 2px;
+        gap: 6px;
+        padding: 6px;
+        width: 100%;
+        background: #0f1829;
+        border: 1px solid #1e293b;
+        border-radius: 14px;
+        box-shadow: 0 6px 20px -8px rgba(0, 0, 0, 0.6);
     }
+    .stTabs [data-baseweb="tab-highlight"],
+    .stTabs [data-baseweb="tab-border"] { display: none; }
     .stTabs [data-baseweb="tab"] {
-        height: 46px;
-        padding: 0 20px;
-        color: #94a3b8;
-        font-weight: 600;
-        font-size: 0.95rem;
-        border-radius: 8px 8px 0 0;
+        flex: 1;
+        justify-content: center;
+        height: 44px;
+        padding: 0 18px;
+        border-radius: 10px;
+        background: transparent;
+        transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
     }
+    .stTabs [data-baseweb="tab"] p {
+        margin: 0;
+        font-size: 0.92rem;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        color: #94a3b8 !important;
+    }
+    .stTabs [data-baseweb="tab"]:hover { background: rgba(148, 163, 184, 0.08); }
+    .stTabs [data-baseweb="tab"]:hover p { color: #e2e8f0 !important; }
     .stTabs [aria-selected="true"] {
-        color: #34d399 !important;
-        background-color: rgba(16, 185, 129, 0.12) !important;
-        border-bottom: 3px solid #34d399 !important;
+        background: linear-gradient(135deg, #059669 0%, #0d9488 100%) !important;
+        box-shadow: 0 4px 14px -2px rgba(16, 185, 129, 0.45);
+    }
+    .stTabs [aria-selected="true"] p { color: #ecfdf5 !important; }
+    .stTabs [data-baseweb="tab-panel"] { padding-top: 1.2rem; }
+    @media (max-width: 640px) {
+        .stTabs [data-baseweb="tab-list"] { overflow-x: auto; }
+        .stTabs [data-baseweb="tab"] { flex: 0 0 auto; padding: 0 14px; }
     }
 
     /* Tarjetas animadas (lluvia, humedad y sol) */
@@ -960,7 +981,12 @@ df = cargar_datos()
 
 # Pestañas principales
 tab_monitoreo, tab_historico, tab_registros, tab_asistente = st.tabs(
-    ["Monitoreo Telemétrico", "Histórico", "Registros", "Asistente IA Agrónomo"]
+    [
+        ":material/monitoring: Monitoreo Telemétrico",
+        ":material/show_chart: Histórico",
+        ":material/table_chart: Registros",
+        ":material/smart_toy: Asistente IA Agrónomo",
+    ]
 )
 
 # ---------------------------------------------------------
