@@ -6,7 +6,9 @@ Diseño ejecutivo profesional con indicadores visuales avanzados y
 sincronización de zona horaria para Colombia (America/Bogota).
 """
 
+import html
 import os
+import re
 from dotenv import load_dotenv
 from groq import Groq
 import pandas as pd
@@ -261,6 +263,115 @@ CSS_PROFESIONAL = """
         color: #cbd5e1;
         margin: 0;
         line-height: 1.5;
+    }
+
+    /* Banner de estado de riego */
+    .riego-card {
+        display: flex;
+        align-items: center;
+        gap: 1.4rem;
+        padding: 1.3rem 1.6rem;
+        border-radius: 14px;
+        margin: 1.5rem 0;
+        border: 1px solid;
+        position: relative;
+        overflow: hidden;
+    }
+    .riego-on {
+        background: linear-gradient(100deg, rgba(14, 165, 233, 0.20) 0%, #111a2e 70%);
+        border-color: rgba(56, 189, 248, 0.35);
+        box-shadow: 0 8px 24px -8px rgba(14, 165, 233, 0.35);
+    }
+    .riego-off {
+        background: linear-gradient(100deg, rgba(34, 197, 94, 0.16) 0%, #111a2e 70%);
+        border-color: rgba(34, 197, 94, 0.30);
+        box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.5);
+    }
+    .riego-icon {
+        position: relative;
+        width: 64px;
+        height: 64px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+    }
+    .riego-on .riego-icon { background: rgba(56, 189, 248, 0.15); }
+    .riego-off .riego-icon { background: rgba(34, 197, 94, 0.15); }
+    .riego-ring {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        border: 2px solid #38bdf8;
+        animation: onda 2s ease-out infinite;
+    }
+    .riego-ring.r2 { animation-delay: 1s; }
+    @keyframes onda {
+        0% { transform: scale(0.9); opacity: 0.7; }
+        100% { transform: scale(1.7); opacity: 0; }
+    }
+    @keyframes parpadeo { 50% { opacity: 0.3; } }
+    .riego-body { flex: 1; min-width: 0; }
+    .riego-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+    .riego-title {
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+    }
+    .riego-on .riego-title { color: #7dd3fc; }
+    .riego-off .riego-title { color: #86efac; }
+    .riego-right { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
+    .riego-chip-estado {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0.2rem 0.7rem;
+        border-radius: 20px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+    }
+    .riego-on .riego-chip-estado { background: rgba(56, 189, 248, 0.18); color: #7dd3fc; }
+    .riego-off .riego-chip-estado { background: rgba(34, 197, 94, 0.18); color: #86efac; }
+    .riego-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .riego-on .riego-dot { animation: parpadeo 1.4s ease-in-out infinite; }
+    .riego-tiempo { color: #94a3b8; font-size: 0.78rem; }
+    .riego-regla {
+        font-size: 1.3rem;
+        font-weight: 800;
+        color: #f1f5f9;
+        margin: 0.5rem 0 0.2rem;
+    }
+    .riego-desc { font-size: 0.92rem; color: #94a3b8; margin: 0; line-height: 1.5; }
+    .riego-datos { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.9rem; }
+    .riego-dato {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0.3rem 0.75rem;
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.7);
+        border: 1px solid #1e293b;
+        font-size: 0.85rem;
+        color: #f1f5f9;
+    }
+    .riego-dato .l {
+        color: #94a3b8;
+        font-weight: 600;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    @media (max-width: 640px) {
+        .riego-card { flex-direction: column; align-items: flex-start; }
     }
 
     /* Pestañas */
@@ -556,6 +667,81 @@ def html_sol(rad):
     )
 
 
+def _txt(v):
+    """Texto seguro: vacío si es None o NaN."""
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return ""
+    return str(v)
+
+
+def formato_hace(fecha):
+    """Tiempo transcurrido desde `fecha` (hora Colombia, sin zona) hasta ahora."""
+    ahora = pd.Timestamp.now(tz="America/Bogota").tz_localize(None)
+    seg = max(0, int((ahora - fecha).total_seconds()))
+    if seg < 60:
+        return "hace instantes"
+    if seg < 3600:
+        return f"hace {seg // 60} min"
+    if seg < 86400:
+        return f"hace {seg // 3600} h"
+    return f"hace {seg // 86400} d"
+
+
+def html_banner_riego(fila, activo):
+    """Banner profesional del estado de riego: icono, regla, diagnóstico y datos."""
+    regla = html.escape(_txt(fila.get("regla_aplicada")) or "N/A").replace(" - ", " · ")
+    crudo = _txt(fila.get("mensaje"))
+    mensaje = html.escape(re.sub(r"\s*\([^)]*\)", "", crudo).strip() or crudo)
+
+    gota = "M12 2.5C12 2.5 5 10 5 15a7 7 0 0 0 14 0c0-5-7-12.5-7-12.5z"
+    if activo:
+        clase, titulo, chip = "riego-on", "Orden de riego activa", "ACTIVO"
+        etiqueta_tiempo = "Orden emitida"
+        icono = (
+            '<div class="riego-icon"><span class="riego-ring"></span><span class="riego-ring r2"></span>'
+            '<svg viewBox="0 0 24 24" width="32" height="32" xmlns="http://www.w3.org/2000/svg">'
+            f'<path d="{gota}" fill="#38bdf8"/>'
+            '<path d="M9 15a3 3 0 0 0 3 3" stroke="#e0f2fe" stroke-width="1.6" fill="none" stroke-linecap="round"/>'
+            "</svg></div>"
+        )
+    else:
+        clase, titulo, chip = "riego-off", "Sistema en reposo · riego desactivado", "EN REPOSO"
+        etiqueta_tiempo = "Última verificación"
+        icono = (
+            '<div class="riego-icon">'
+            '<svg viewBox="0 0 24 24" width="32" height="32" xmlns="http://www.w3.org/2000/svg">'
+            f'<path d="{gota}" fill="none" stroke="#22c55e" stroke-width="1.8"/>'
+            '<path d="M9 14.5l2.2 2.2L15.5 12" stroke="#22c55e" stroke-width="1.8" fill="none" '
+            'stroke-linecap="round" stroke-linejoin="round"/>'
+            "</svg></div>"
+        )
+
+    datos = [
+        ("Temp.", f"{float(fila['temperatura_c']):.1f} °C"),
+        ("Humedad", f"{float(fila['humedad_relativa_pct']):.0f} %"),
+        ("Rad. solar", f"{float(fila['radiacion_solar_wm2']):.0f} W/m²"),
+        ("Lluvia", f"{float(fila['precipitacion_mm']):.1f} mm"),
+    ]
+    chips = "".join(
+        f'<span class="riego-dato"><span class="l">{e}</span><b>{v}</b></span>' for e, v in datos
+    )
+    hora = fila["fecha_registro"].strftime("%H:%M")
+    tiempo = f"{etiqueta_tiempo} {formato_hace(fila['fecha_registro'])} · {hora}"
+    desc = f'<p class="riego-desc">{mensaje}</p>' if mensaje else ""
+
+    return (
+        f'<div class="riego-card {clase}">{icono}'
+        '<div class="riego-body">'
+        f'<div class="riego-top"><span class="riego-title">{titulo}</span>'
+        f'<div class="riego-right"><span class="riego-chip-estado"><span class="riego-dot"></span>{chip}</span>'
+        f'<span class="riego-tiempo">{tiempo}</span></div></div>'
+        f'<div class="riego-regla">{regla}</div>'
+        f"{desc}"
+        f'<div class="riego-datos">{chips}</div>'
+        "</div></div>"
+    )
+
+
 def crear_tacometro(velocidad):
     """Tacómetro (gauge) para la velocidad del viento."""
     v = float(velocidad)
@@ -712,34 +898,7 @@ with tab_monitoreo:
             ]
 
         # Banner de Estado
-        if riego_activo:
-            st.markdown(
-                f"""
-                <div class="status-card-active">
-                    <div class="status-header-flex">
-                        <span class="status-title-active">ORDEN DE RIEGO ACTIVA</span>
-                    </div>
-                    <div class="status-desc">
-                        Regla Aplicada: <b>{ultima.get('regla_aplicada', 'N/A')}</b> — {ultima.get('mensaje', '')}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                f"""
-                <div class="status-card-inactive">
-                    <div class="status-header-flex">
-                        <span class="status-title-inactive">SISTEMA EN REPOSO — RIEGO DESACTIVADO</span>
-                    </div>
-                    <div class="status-desc">
-                        Regla Aplicada: <b>{ultima.get('regla_aplicada', 'N/A')}</b> — {ultima.get('mensaje', '')}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+        st.markdown(html_banner_riego(ultima, riego_activo), unsafe_allow_html=True)
 
         st.markdown(
             "<h3 style='color: #f1f5f9; font-weight: 700; margin-top: 2rem;'>Histórico de Telemetría</h3>",
