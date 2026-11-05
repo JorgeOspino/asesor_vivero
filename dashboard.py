@@ -544,8 +544,8 @@ st.markdown(
     """
     <div class="main-header">
         <div class="header-title-container">
-            <h1>Sistema de Riego Inteligente</h1>
-            <p>Estación Telemétrica y Motor de Reglas Agrícolas — Vivero Universidad CECAR</p>
+            <h1>SAVA-IOT</h1>
+            <p>Estación Telemétrica y Motor de Reglas Agrícolas </p>
         </div>
         <div class="header-badge">
             <span class="pulse-dot"></span> EN LÍNEA
