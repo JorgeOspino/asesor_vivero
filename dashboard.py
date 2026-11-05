@@ -200,6 +200,48 @@ CSS_PROFESIONAL = """
         border-bottom: 3px solid #34d399 !important;
     }
 
+    /* Tarjetas animadas (lluvia, humedad y sol) */
+    .anim-card {
+        position: relative;
+        overflow: hidden;
+        min-height: 210px;
+        display: flex;
+        align-items: center;
+    }
+    .anim-content { position: relative; z-index: 2; }
+    .cloud-icon { position: absolute; top: 12px; right: 16px; z-index: 2; }
+    .raindrop {
+        position: absolute;
+        top: -24px;
+        width: 2px;
+        border-radius: 2px;
+        background: linear-gradient(to bottom, rgba(96, 165, 250, 0), #60a5fa);
+        animation-name: caer;
+        animation-timing-function: linear;
+        animation-iteration-count: infinite;
+        z-index: 1;
+    }
+    @keyframes caer {
+        0% { transform: translateY(0); opacity: 0; }
+        10% { opacity: 1; }
+        100% { transform: translateY(260px); opacity: 0.2; }
+    }
+    @keyframes girar { to { transform: rotate(360deg); } }
+    @keyframes latido {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.08); }
+    }
+    .sun-rays {
+        transform-origin: 100px 100px;
+        animation-name: girar;
+        animation-timing-function: linear;
+        animation-iteration-count: infinite;
+    }
+    .sun-core {
+        transform-origin: 100px 100px;
+        animation: latido 2.5s ease-in-out infinite;
+    }
+
     /* Tarjetas contenedoras (termómetro y tacómetro) */
     .st-key-card_termo, .st-key-card_viento {
         background-color: #111a2e;
@@ -312,6 +354,125 @@ def html_termometro(temp):
     )
 
 
+def estado_lluvia(p):
+    """Devuelve (cantidad de gotas, estado, color) según la precipitación."""
+    if p <= 0:
+        return 0, "SIN LLUVIA", "#64748b"
+    if p < 2.5:
+        return 8, "LLOVIZNA", "#7dd3fc"
+    if p < 7.5:
+        return 16, "LLUVIA MODERADA", "#60a5fa"
+    if p < 15:
+        return 28, "LLUVIA FUERTE", "#3b82f6"
+    return 40, "AGUACERO", "#818cf8"
+
+
+def html_lluvia(precip):
+    """Tarjeta con gotas cayendo; más gotas y más rápidas con más lluvia."""
+    p = max(0.0, float(precip))
+    n, estado, color = estado_lluvia(p)
+    dur = max(0.5, 1.8 - p * 0.08)
+    gotas = "".join(
+        f'<span class="raindrop" style="left:{(i * 37 + 11) % 100}%;height:{12 + (i % 3) * 4}px;'
+        f'animation-duration:{dur + (i % 3) * 0.25:.2f}s;animation-delay:-{(i * 0.29) % 2:.2f}s;"></span>'
+        for i in range(n)
+    )
+    nube = "#94a3b8" if n else "#475569"
+    return (
+        f'<div class="metric-card metric-precip anim-card">{gotas}'
+        '<svg class="cloud-icon" viewBox="0 0 64 40" width="64" height="40" xmlns="http://www.w3.org/2000/svg">'
+        f'<g fill="{nube}"><circle cx="20" cy="24" r="12"/><circle cx="34" cy="16" r="14"/>'
+        '<circle cx="48" cy="24" r="11"/><rect x="20" y="24" width="28" height="11"/></g></svg>'
+        '<div class="anim-content">'
+        '<div class="metric-label">Precipitación</div>'
+        f'<div class="metric-value" style="font-size:2.4rem;">{p:.1f}<span class="metric-unit">mm</span></div>'
+        '<div style="display:inline-block;margin-top:0.6rem;padding:0.25rem 0.8rem;border-radius:20px;'
+        f'background:{color}22;color:{color};font-weight:700;font-size:0.8rem;">{estado}</div>'
+        "</div></div>"
+    )
+
+
+def html_humedad(hum):
+    """Tarjeta de humedad con barra de nivel."""
+    h = float(hum)
+    pct = max(0.0, min(100.0, h))
+    return (
+        '<div class="metric-card metric-humidity anim-card"><div class="anim-content" style="width:100%;">'
+        '<div class="metric-label">Humedad Rel.</div>'
+        f'<div class="metric-value" style="font-size:2.4rem;">{h:.1f}<span class="metric-unit">%</span></div>'
+        '<div style="height:10px;background:#1e293b;border-radius:6px;margin-top:1rem;overflow:hidden;">'
+        f'<div style="width:{pct:.0f}%;height:100%;background:linear-gradient(90deg,#14b8a6,#5eead4);'
+        'border-radius:6px;"></div></div>'
+        "</div></div>"
+    )
+
+
+def color_radiacion(r):
+    """Devuelve (color, estado) según la radiación solar en W/m²."""
+    if r < 50:
+        return "#64748b", "SIN SOL"
+    if r < 300:
+        return "#fde047", "BAJA"
+    if r < 600:
+        return "#facc15", "MODERADA"
+    if r < 800:
+        return "#fb923c", "ALTA"
+    if r < 1000:
+        return "#f97316", "MUY ALTA"
+    return "#ef4444", "EXTREMA"
+
+
+def html_sol(rad):
+    """Sol que se carga: el anillo se llena, los rayos giran más rápido y el brillo crece."""
+    r = max(0.0, float(rad))
+    color, estado = color_radiacion(r)
+    frac = min(1.0, r / 1200)
+    circ = 2 * 3.14159265 * 88
+    prog = circ * frac
+
+    rayos = "".join(
+        f'<line x1="100" y1="48" x2="100" y2="34" stroke="{color}" stroke-width="5" '
+        f'stroke-linecap="round" transform="rotate({a} 100 100)"/>'
+        for a in range(0, 360, 30)
+    )
+    estilo_rayos = (
+        f"animation-duration:{40 - 34 * frac:.1f}s;opacity:{0.45 + 0.55 * frac:.2f};"
+        if r >= 50
+        else "animation:none;opacity:0.4;"
+    )
+    anillo = (
+        f'<circle cx="100" cy="100" r="88" fill="none" stroke="{color}" stroke-width="10" '
+        f'stroke-linecap="round" stroke-dasharray="{prog:.1f} {circ:.1f}" transform="rotate(-90 100 100)"/>'
+        if frac > 0
+        else ""
+    )
+
+    svg = (
+        '<svg viewBox="0 0 200 200" width="170" height="170" xmlns="http://www.w3.org/2000/svg">'
+        f'<defs><filter id="brillo" x="-50%" y="-50%" width="200%" height="200%">'
+        f'<feGaussianBlur stdDeviation="{4 + 8 * frac:.1f}"/></filter></defs>'
+        '<circle cx="100" cy="100" r="88" fill="none" stroke="#1e293b" stroke-width="10"/>'
+        f"{anillo}"
+        f'<g class="sun-rays" style="{estilo_rayos}">{rayos}</g>'
+        f'<circle cx="100" cy="100" r="40" fill="{color}" opacity="{0.35 + 0.5 * frac:.2f}" filter="url(#brillo)"/>'
+        f'<g class="sun-core"><circle cx="100" cy="100" r="30" fill="{color}"/>'
+        '<circle cx="92" cy="92" r="10" fill="#ffffff" opacity="0.25"/></g>'
+        "</svg>"
+    )
+
+    return (
+        '<div class="metric-card metric-solar anim-card">'
+        '<div style="display:flex;align-items:center;justify-content:center;gap:1rem;width:100%;">'
+        f"{svg}"
+        '<div><div class="metric-label">Rad. Solar</div>'
+        f'<div class="metric-value" style="color:{color};font-size:2.2rem;">{r:.1f}<span class="metric-unit">W/m²</span></div>'
+        '<div style="display:inline-block;margin-top:0.5rem;padding:0.25rem 0.8rem;border-radius:20px;'
+        f'background:{color}22;color:{color};font-weight:700;font-size:0.8rem;">{estado}</div>'
+        f'<div style="color:#94a3b8;font-size:0.8rem;margin-top:0.5rem;">Carga solar: <b>{frac * 100:.0f}%</b></div>'
+        "</div></div></div>"
+    )
+
+
 def crear_tacometro(velocidad):
     """Tacómetro (gauge) para la velocidad del viento."""
     v = float(velocidad)
@@ -417,8 +578,8 @@ with tab_monitoreo:
             unsafe_allow_html=True,
         )
 
-        # Termómetro + Tacómetro + métricas restantes
-        col_termo, col_viento, col_resto = st.columns([1, 1.2, 1])
+        # Fila 1: Termómetro + Tacómetro
+        col_termo, col_viento = st.columns(2)
 
         with col_termo:
             with st.container(key="card_termo"):
@@ -431,20 +592,19 @@ with tab_monitoreo:
                     use_container_width=True,
                 )
 
-        with col_resto:
-            tarjetas = [
-                ("metric-precip", "Precipitación", ultima["precipitacion_mm"], "mm"),
-                ("metric-humidity", "Humedad Rel.", ultima["humedad_relativa_pct"], "%"),
-                ("metric-solar", "Rad. Solar", ultima["radiacion_solar_wm2"], "W/m²"),
-            ]
-            for clase, etiqueta, valor, unidad in tarjetas:
-                st.markdown(
-                    f'<div class="metric-card {clase}" style="margin-bottom:0.8rem;">'
-                    f'<div class="metric-label">{etiqueta}</div>'
-                    f'<div class="metric-value">{valor}<span class="metric-unit">{unidad}</span></div>'
-                    f"</div>",
-                    unsafe_allow_html=True,
-                )
+        st.markdown("<div style='height:0.8rem;'></div>", unsafe_allow_html=True)
+
+        # Fila 2: Lluvia + Humedad + Sol
+        col_lluvia, col_hum, col_sol = st.columns(3)
+
+        with col_lluvia:
+            st.markdown(html_lluvia(ultima["precipitacion_mm"]), unsafe_allow_html=True)
+
+        with col_hum:
+            st.markdown(html_humedad(ultima["humedad_relativa_pct"]), unsafe_allow_html=True)
+
+        with col_sol:
+            st.markdown(html_sol(ultima["radiacion_solar_wm2"]), unsafe_allow_html=True)
 
         # Validación robusta de booleano vs string
         orden_val = ultima.get("orden_riego")
