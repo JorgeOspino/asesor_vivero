@@ -812,7 +812,7 @@ def _estilo_base_grafica(fig, altura=300):
     return fig
 
 
-def crear_grafica_temperatura(df):
+def crear_grafica_temperatura(df, altura=300):
     """Área con degradado, brillo en la línea y punto resaltado en la última lectura."""
     x, y = df["fecha_registro"], df["temperatura_c"].astype(float)
     verde = "52, 211, 153"
@@ -842,12 +842,12 @@ def crear_grafica_temperatura(df):
     fig.add_annotation(x=x_ult, y=y_ult, text=f"<b>{y_ult:.1f} °C</b>", showarrow=False,
                        xanchor="right", yshift=22, font=dict(color="#34d399", size=12),
                        bgcolor=f"rgba({verde}, 0.12)", bordercolor=f"rgba({verde}, 0.4)", borderpad=4)
-    _estilo_base_grafica(fig)
+    _estilo_base_grafica(fig, altura)
     fig.update_yaxes(range=[0, max(float(y.max()) * 1.15, 1)], ticksuffix="°")
     return fig
 
 
-def crear_grafica_lluvia(df):
+def crear_grafica_lluvia(df, altura=300):
     """Barras coloreadas por intensidad (misma paleta que la tarjeta) y marca del máximo."""
     x, y = df["fecha_registro"], df["precipitacion_mm"].astype(float)
     colores = [estado_lluvia(v)[2] if v > 0 else "rgba(0,0,0,0)" for v in y]
@@ -860,7 +860,7 @@ def crear_grafica_lluvia(df):
         fig.add_annotation(x=x[i], y=float(y[i]), text=f"<b>Máx. {y[i]:.1f} mm</b>", showarrow=False,
                            xanchor="right", yshift=18, font=dict(color=estado_lluvia(y[i])[2], size=12),
                            bgcolor="rgba(96, 165, 250, 0.12)", bordercolor="rgba(96, 165, 250, 0.4)", borderpad=4)
-    _estilo_base_grafica(fig)
+    _estilo_base_grafica(fig, altura)
     fig.update_layout(bargap=0.15)
     fig.update_yaxes(range=[0, max(float(y.max()) * 1.3, 1)], ticksuffix=" mm")
     return fig
@@ -959,8 +959,8 @@ st.markdown(
 df = cargar_datos()
 
 # Pestañas principales
-tab_monitoreo, tab_asistente = st.tabs(
-    [" Monitoreo Telemétrico", " Asistente IA Agrónomo"]
+tab_monitoreo, tab_historico, tab_registros, tab_asistente = st.tabs(
+    ["Monitoreo Telemétrico", "Histórico", "Registros", "Asistente IA Agrónomo"]
 )
 
 # ---------------------------------------------------------
@@ -1024,10 +1024,17 @@ with tab_monitoreo:
         # Banner de Estado
         st.markdown(html_banner_riego(ultima, riego_activo), unsafe_allow_html=True)
 
-        st.markdown(html_titulo_seccion("Histórico de Telemetría"), unsafe_allow_html=True)
+# ---------------------------------------------------------
+# TAB 2: HISTÓRICO (GRÁFICAS EN UNA SOLA VISTA)
+# ---------------------------------------------------------
+with tab_historico:
+    if df.empty:
+        st.info("Esperando recepción de datos telemétricos desde Neon...")
+    else:
+        ultima = df.iloc[0]
+        subtitulo = f"Últimas {len(df)} lecturas · Hora Colombia"
 
         col_chart1, col_chart2 = st.columns(2)
-        subtitulo = f"Últimas {len(df)} lecturas · Hora Colombia"
 
         with col_chart1:
             with st.container(key="card_hist_temp"):
@@ -1039,7 +1046,11 @@ with tab_monitoreo:
                     ),
                     unsafe_allow_html=True,
                 )
-                st.plotly_chart(crear_grafica_temperatura(df), use_container_width=True, config=CONFIG_GRAFICA)
+                st.plotly_chart(
+                    crear_grafica_temperatura(df, altura=380),
+                    use_container_width=True,
+                    config=CONFIG_GRAFICA,
+                )
 
         with col_chart2:
             with st.container(key="card_hist_lluvia"):
@@ -1051,14 +1062,25 @@ with tab_monitoreo:
                     ),
                     unsafe_allow_html=True,
                 )
-                st.plotly_chart(crear_grafica_lluvia(df), use_container_width=True, config=CONFIG_GRAFICA)
+                st.plotly_chart(
+                    crear_grafica_lluvia(df, altura=380),
+                    use_container_width=True,
+                    config=CONFIG_GRAFICA,
+                )
                 st.markdown(html_leyenda_lluvia(), unsafe_allow_html=True)
 
-        with st.expander(" Consultar registros históricos detallados"):
-            st.dataframe(df, use_container_width=True)
+# ---------------------------------------------------------
+# TAB 3: REGISTROS (TABLA DETALLADA)
+# ---------------------------------------------------------
+with tab_registros:
+    if df.empty:
+        st.info("Esperando recepción de datos telemétricos desde Neon...")
+    else:
+        st.markdown(html_titulo_seccion("Registros históricos detallados"), unsafe_allow_html=True)
+        st.dataframe(df, use_container_width=True, height=520)
 
 # ---------------------------------------------------------
-# TAB 2: ASISTENTE IA AGRÓNOMO (MULTI-MODELO)
+# TAB 4: ASISTENTE IA AGRÓNOMO (MULTI-MODELO)
 # ---------------------------------------------------------
 with tab_asistente:
     st.subheader("Asistente Virtual Agrónomo")
