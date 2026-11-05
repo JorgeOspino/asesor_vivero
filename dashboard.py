@@ -573,7 +573,7 @@ with st.sidebar:
 
 # --- ENCABEZADO PRINCIPAL ---
 robot_html = (
-    f'<img class="header-robot" src="data:image/png;base64,{ROBOT_B64}" alt="SAVA-IoT"/>'
+    f'<img class="header-robot" src="robot_savaiot.png;base64,{ROBOT_B64}" alt="SAVA-IoT"/>'
     if ROBOT_B64
     else ""
 )
