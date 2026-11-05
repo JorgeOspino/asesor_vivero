@@ -559,7 +559,7 @@ df = cargar_datos()
 
 # Pestañas principales
 tab_monitoreo, tab_asistente = st.tabs(
-    ["📊 Monitoreo Telemétrico", "🤖 Asistente IA Agrónomo"]
+    [" Monitoreo Telemétrico", " Asistente IA Agrónomo"]
 )
 
 # ---------------------------------------------------------
@@ -717,7 +717,7 @@ with tab_monitoreo:
             )
             st.plotly_chart(fig_precip, use_container_width=True)
 
-        with st.expander("🔍 Consultar registros históricos detallados"):
+        with st.expander(" Consultar registros históricos detallados"):
             st.dataframe(df, use_container_width=True)
 
 # ---------------------------------------------------------
