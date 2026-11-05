@@ -437,7 +437,7 @@ CSS_PROFESIONAL = """
     }
 
     /* Tarjetas contenedoras (termómetro y tacómetro) */
-    .st-key-card_termo, .st-key-card_viento {
+    .st-key-card_termo, .st-key-card_viento, .st-key-card_hist_temp, .st-key-card_hist_lluvia {
         background-color: #111a2e;
         border: 1px solid #1e293b;
         border-radius: 12px;
@@ -742,6 +742,130 @@ def html_banner_riego(fila, activo):
     )
 
 
+CONFIG_GRAFICA = {
+    "displaylogo": False,
+    "modeBarButtonsToRemove": ["select2d", "lasso2d", "autoScale2d", "toggleSpikelines"],
+}
+
+
+def html_titulo_seccion(texto):
+    """Título de sección con barra de acento degradada."""
+    return (
+        '<div style="display:flex;align-items:center;gap:0.7rem;margin:2rem 0 1rem;">'
+        '<div style="width:5px;height:28px;border-radius:3px;background:linear-gradient(#34d399,#0ea5e9);"></div>'
+        f'<h3 style="margin:0;color:#f1f5f9;font-weight:800;letter-spacing:-0.01em;">{texto}</h3></div>'
+    )
+
+
+def html_cabecera_grafica(icono, color, titulo, subtitulo, etiqueta, valor):
+    """Cabecera de tarjeta: icono, título, subtítulo y valor destacado a la derecha."""
+    svg = (
+        f'<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="{color}" stroke-width="2" '
+        f'stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="{icono}"/></svg>'
+    )
+    return (
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:0.2rem;">'
+        '<div style="display:flex;align-items:center;gap:0.8rem;">'
+        f'<div style="width:42px;height:42px;border-radius:12px;background:{color}22;border:1px solid {color}44;'
+        f'display:flex;align-items:center;justify-content:center;">{svg}</div>'
+        f'<div><div style="font-size:1rem;font-weight:800;color:#f1f5f9;line-height:1.2;">{titulo}</div>'
+        f'<div style="font-size:0.78rem;color:#94a3b8;">{subtitulo}</div></div></div>'
+        f'<div style="text-align:right;"><div class="metric-label" style="margin:0;">{etiqueta}</div>'
+        f'<div style="font-size:1.35rem;font-weight:800;color:{color};line-height:1.1;">{valor}</div></div>'
+        "</div>"
+    )
+
+
+def html_leyenda_lluvia():
+    """Leyenda de intensidades de lluvia (mismos colores que la tarjeta de precipitación)."""
+    items = [("Llovizna", "#7dd3fc"), ("Moderada", "#60a5fa"), ("Fuerte", "#3b82f6"), ("Aguacero", "#818cf8")]
+    puntos = "".join(
+        f'<span style="display:inline-flex;align-items:center;gap:6px;color:#94a3b8;font-size:0.75rem;">'
+        f'<span style="width:9px;height:9px;border-radius:50%;background:{c};"></span>{n}</span>'
+        for n, c in items
+    )
+    return f'<div style="display:flex;flex-wrap:wrap;gap:1rem;justify-content:center;margin-top:0.2rem;">{puntos}</div>'
+
+
+def _estilo_base_grafica(fig, altura=300):
+    """Estilo común: fondo transparente, rejilla sutil, hover oscuro y barra de herramientas discreta."""
+    fig.update_layout(
+        template="plotly_dark",
+        height=altura,
+        margin=dict(l=10, r=10, t=30, b=10),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Inter, -apple-system, sans-serif", color="#94a3b8", size=12),
+        showlegend=False,
+        hovermode="x unified",
+        hoverlabel=dict(bgcolor="#0f172a", bordercolor="#334155", font=dict(color="#e2e8f0", size=12)),
+        modebar=dict(bgcolor="rgba(0,0,0,0)", color="#64748b", activecolor="#34d399"),
+        xaxis=dict(
+            showgrid=False, showline=False, zeroline=False, tickfont=dict(size=11), automargin=True,
+            showspikes=True, spikemode="across", spikecolor="#334155", spikethickness=1, spikedash="dot",
+        ),
+        yaxis=dict(
+            gridcolor="rgba(148,163,184,0.12)", griddash="dot", zeroline=False, showline=False,
+            tickfont=dict(size=11), automargin=True,
+        ),
+    )
+    return fig
+
+
+def crear_grafica_temperatura(df):
+    """Área con degradado, brillo en la línea y punto resaltado en la última lectura."""
+    x, y = df["fecha_registro"], df["temperatura_c"].astype(float)
+    verde = "52, 211, 153"
+    fig = go.Figure()
+    # Brillo (línea ancha y translúcida debajo)
+    fig.add_trace(
+        go.Scatter(x=x, y=y, mode="lines", hoverinfo="skip",
+                   line=dict(color=f"rgba({verde}, 0.16)", width=9, shape="spline"))
+    )
+    base = dict(x=x, y=y, mode="lines", name="Temperatura", hovertemplate="%{y:.1f} °C",
+                line=dict(color="#34d399", width=2.5, shape="spline"), fill="tozeroy")
+    try:
+        fig.add_trace(go.Scatter(
+            **base,
+            fillgradient=dict(type="vertical",
+                              colorscale=[[0, f"rgba({verde}, 0)"], [1, f"rgba({verde}, 0.30)"]]),
+        ))
+    except ValueError:  # versiones antiguas de Plotly sin degradado
+        fig.add_trace(go.Scatter(**base, fillcolor=f"rgba({verde}, 0.12)"))
+
+    i = x.idxmax()
+    x_ult, y_ult = x[i], float(y[i])
+    fig.add_trace(go.Scatter(x=[x_ult], y=[y_ult], mode="markers", hoverinfo="skip",
+                             marker=dict(size=24, color=f"rgba({verde}, 0.25)")))
+    fig.add_trace(go.Scatter(x=[x_ult], y=[y_ult], mode="markers", hoverinfo="skip",
+                             marker=dict(size=10, color="#34d399", line=dict(color="#ffffff", width=2))))
+    fig.add_annotation(x=x_ult, y=y_ult, text=f"<b>{y_ult:.1f} °C</b>", showarrow=False,
+                       xanchor="right", yshift=22, font=dict(color="#34d399", size=12),
+                       bgcolor=f"rgba({verde}, 0.12)", bordercolor=f"rgba({verde}, 0.4)", borderpad=4)
+    _estilo_base_grafica(fig)
+    fig.update_yaxes(range=[0, max(float(y.max()) * 1.15, 1)], ticksuffix="°")
+    return fig
+
+
+def crear_grafica_lluvia(df):
+    """Barras coloreadas por intensidad (misma paleta que la tarjeta) y marca del máximo."""
+    x, y = df["fecha_registro"], df["precipitacion_mm"].astype(float)
+    colores = [estado_lluvia(v)[2] if v > 0 else "rgba(0,0,0,0)" for v in y]
+    fig = go.Figure(
+        go.Bar(x=x, y=y, name="Precipitación", hovertemplate="%{y:.1f} mm",
+               marker=dict(color=colores, line=dict(color=colores, width=2)))
+    )
+    i = y.idxmax()
+    if y[i] > 0:
+        fig.add_annotation(x=x[i], y=float(y[i]), text=f"<b>Máx. {y[i]:.1f} mm</b>", showarrow=False,
+                           xanchor="right", yshift=18, font=dict(color=estado_lluvia(y[i])[2], size=12),
+                           bgcolor="rgba(96, 165, 250, 0.12)", bordercolor="rgba(96, 165, 250, 0.4)", borderpad=4)
+    _estilo_base_grafica(fig)
+    fig.update_layout(bargap=0.15)
+    fig.update_yaxes(range=[0, max(float(y.max()) * 1.3, 1)], ticksuffix=" mm")
+    return fig
+
+
 def crear_tacometro(velocidad):
     """Tacómetro (gauge) para la velocidad del viento."""
     v = float(velocidad)
@@ -900,72 +1024,35 @@ with tab_monitoreo:
         # Banner de Estado
         st.markdown(html_banner_riego(ultima, riego_activo), unsafe_allow_html=True)
 
-        st.markdown(
-            "<h3 style='color: #f1f5f9; font-weight: 700; margin-top: 2rem;'>Histórico de Telemetría</h3>",
-            unsafe_allow_html=True,
-        )
+        st.markdown(html_titulo_seccion("Histórico de Telemetría"), unsafe_allow_html=True)
 
         col_chart1, col_chart2 = st.columns(2)
+        subtitulo = f"Últimas {len(df)} lecturas · Hora Colombia"
 
-        # Gráfico de Temperatura (Area suavizada)
         with col_chart1:
-            fig_temp = go.Figure()
-            fig_temp.add_trace(
-                go.Scatter(
-                    x=df["fecha_registro"],
-                    y=df["temperatura_c"],
-                    mode="lines",
-                    name="Temperatura (°C)",
-                    line=dict(color="#34d399", width=3, shape="spline"),
-                    fill="tozeroy",
-                    fillcolor="rgba(52, 211, 153, 0.12)",
-                )
-            )
-            fig_temp.update_layout(
-                title=dict(
-                    text="<b>Evolución Térmica (°C)</b>",
-                    font=dict(size=15, color="#e2e8f0"),
-                ),
-                template="plotly_dark",
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                margin=dict(l=20, r=20, t=50, b=20),
-                height=340,
-                hovermode="x unified",
-                xaxis=dict(showgrid=True, gridcolor="#1e293b", title=""),
-                yaxis=dict(showgrid=True, gridcolor="#1e293b", title="°C"),
-            )
-            st.plotly_chart(fig_temp, use_container_width=True)
-
-        # Gráfico de Precipitación (Barras pulidas)
-        with col_chart2:
-            fig_precip = go.Figure()
-            fig_precip.add_trace(
-                go.Bar(
-                    x=df["fecha_registro"],
-                    y=df["precipitacion_mm"],
-                    name="Precipitación (mm)",
-                    marker=dict(
-                        color="#60a5fa",
-                        line=dict(color="#3b82f6", width=1),
+            with st.container(key="card_hist_temp"):
+                st.markdown(
+                    html_cabecera_grafica(
+                        "M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z",
+                        "#34d399", "Evolución térmica", subtitulo,
+                        "Actual", f"{float(ultima['temperatura_c']):.1f} °C",
                     ),
+                    unsafe_allow_html=True,
                 )
-            )
-            fig_precip.update_layout(
-                title=dict(
-                    text="<b>Precipitación Acumulada (mm)</b>",
-                    font=dict(size=15, color="#e2e8f0"),
-                ),
-                template="plotly_dark",
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                margin=dict(l=20, r=20, t=50, b=20),
-                height=340,
-                hovermode="x unified",
-                xaxis=dict(showgrid=True, gridcolor="#1e293b", title=""),
-                yaxis=dict(showgrid=True, gridcolor="#1e293b", title="mm"),
-            )
-            st.plotly_chart(fig_precip, use_container_width=True)
+                st.plotly_chart(crear_grafica_temperatura(df), use_container_width=True, config=CONFIG_GRAFICA)
+
+        with col_chart2:
+            with st.container(key="card_hist_lluvia"):
+                st.markdown(
+                    html_cabecera_grafica(
+                        "M12 2.5C12 2.5 5 10 5 15a7 7 0 0 0 14 0c0-5-7-12.5-7-12.5z",
+                        "#60a5fa", "Precipitación", subtitulo,
+                        "Total del periodo", f"{float(df['precipitacion_mm'].sum()):.1f} mm",
+                    ),
+                    unsafe_allow_html=True,
+                )
+                st.plotly_chart(crear_grafica_lluvia(df), use_container_width=True, config=CONFIG_GRAFICA)
+                st.markdown(html_leyenda_lluvia(), unsafe_allow_html=True)
 
         with st.expander(" Consultar registros históricos detallados"):
             st.dataframe(df, use_container_width=True)
