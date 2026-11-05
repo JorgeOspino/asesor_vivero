@@ -6,7 +6,9 @@ Diseño ejecutivo profesional con indicadores visuales avanzados y
 sincronización de zona horaria para Colombia (America/Bogota).
 """
 
+import base64
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 from groq import Groq
 import pandas as pd
@@ -20,6 +22,15 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+@st.cache_data
+def cargar_robot_base64():
+    """Lee robot_savaiot.png (junto a este archivo) y lo devuelve en base64."""
+    ruta = Path(__file__).parent / "robot_savaiot.png"
+    return base64.b64encode(ruta.read_bytes()).decode() if ruta.exists() else ""
+
+
+ROBOT_B64 = cargar_robot_base64()
 
 # Configuración inicial de la página
 st.set_page_config(
@@ -76,6 +87,27 @@ CSS_PROFESIONAL = """
         display: inline-flex;
         align-items: center;
         gap: 8px;
+    }
+
+    /* Robot de la marca en el encabezado */
+    .header-left {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+    }
+    .header-robot {
+        height: 110px;
+        width: auto;
+        filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35));
+        animation: flotar 3.5s ease-in-out infinite;
+    }
+    @keyframes flotar {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-6px); }
+    }
+    @media (max-width: 640px) {
+        .main-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
+        .header-robot { height: 80px; }
     }
 
     /* Indicador de pulso en vivo */
@@ -540,12 +572,20 @@ with st.sidebar:
 
 
 # --- ENCABEZADO PRINCIPAL ---
+robot_html = (
+    f'<img class="header-robot" src="data:image/png;base64,{ROBOT_B64}" alt="SAVA-IoT"/>'
+    if ROBOT_B64
+    else ""
+)
+
 st.markdown(
-    """
+    f"""
     <div class="main-header">
-        <div class="header-title-container">
-            <h1>SAVA-IOT</h1>
-            <p>Sistema autónomo de vigilancia agroclimática </p>
+        <div class="header-left">{robot_html}
+            <div class="header-title-container">
+                <h1>SAVA-IOT</h1>
+                <p>Sistema autónomo de vigilancia agroclimática </p>
+            </div>
         </div>
         <div class="header-badge">
             <span class="pulse-dot"></span> EN LÍNEA
