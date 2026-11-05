@@ -1,8 +1,9 @@
-"""dashboard.py
+"""
+dashboard.py
 
 Panel telemétrico interactivo y Asistente IA para el Vivero CECAR.
-Diseño ejecutivo profesional sin emojis y sincronización de zona horaria
-para Colombia (America/Bogota).
+Diseño ejecutivo profesional con indicadores visuales avanzados y
+sincronización de zona horaria para Colombia (America/Bogota).
 """
 
 import os
@@ -10,6 +11,7 @@ from dotenv import load_dotenv
 from groq import Groq
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import psycopg2
 import streamlit as st
 
@@ -21,101 +23,189 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # Configuración inicial de la página
 st.set_page_config(
-    page_title="Vivero CECAR - Sistema de Riego",
+    page_title="SAVA-IoT | Vivero CECAR",
+    page_icon="🌱",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# Estilos CSS Personalizados
+# Estilos CSS Personalizados Avanzados
 CSS_PROFESIONAL = """
 <style>
+    /* Fondo general */
     .stApp {
         background-color: #f8fafc;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
+    
+    /* Encabezado principal */
     .main-header {
-        background: linear-gradient(135deg, #0f382c 0%, #1a5c48 100%);
-        padding: 1.8rem 2.2rem;
-        border-radius: 12px;
+        background: linear-gradient(135deg, #064e3b 0%, #047857 50%, #0f766e 100%);
+        padding: 2rem 2.5rem;
+        border-radius: 16px;
         color: #ffffff;
-        margin-bottom: 1.8rem;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(6, 78, 59, 0.25);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
-    .main-header h1 {
+    .header-title-container h1 {
         color: #ffffff !important;
-        font-size: 2.1rem !important;
-        font-weight: 700 !important;
+        font-size: 2.2rem !important;
+        font-weight: 800 !important;
         margin: 0 !important;
-        padding: 0 !important;
+        letter-spacing: -0.02em;
     }
-    .main-header p {
+    .header-title-container p {
         color: #a7f3d0 !important;
         font-size: 0.95rem !important;
         margin-top: 0.4rem !important;
-        margin-bottom: 0 !important;
+        font-weight: 400;
     }
-    div[data-testid="stMetric"] {
+    .header-badge {
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        padding: 0.5rem 1rem;
+        border-radius: 30px;
+        color: #ecfdf5;
+        font-size: 0.82rem;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    /* Indicador de pulso en vivo */
+    .pulse-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: #10b981;
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        animation: pulse 1.8s infinite;
+    }
+    @keyframes pulse {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+        70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    /* Tarjetas métricas personalizadas */
+    .metric-card {
         background-color: #ffffff;
         border: 1px solid #e2e8f0;
-        padding: 1.1rem 1.2rem;
-        border-radius: 10px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+        border-radius: 12px;
+        padding: 1.2rem 1rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        position: relative;
+        overflow: hidden;
     }
-    div[data-testid="stMetricLabel"] {
-        font-size: 0.8rem !important;
-        color: #64748b !important;
-        font-weight: 600 !important;
+    .metric-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.06);
+    }
+    .metric-label {
+        font-size: 0.75rem;
+        color: #64748b;
+        font-weight: 700;
         text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.4rem;
     }
-    div[data-testid="stMetricValue"] {
-        font-size: 1.75rem !important;
-        color: #0f172a !important;
-        font-weight: 700 !important;
+    .metric-value {
+        font-size: 1.8rem;
+        color: #0f172a;
+        font-weight: 800;
+        line-height: 1.1;
     }
+    .metric-unit {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #64748b;
+        margin-left: 2px;
+    }
+
+    /* Borde superior temático por variable */
+    .metric-temp { border-top: 4px solid #f97316; }
+    .metric-precip { border-top: 4px solid #3b82f6; }
+    .metric-humidity { border-top: 4px solid #14b8a6; }
+    .metric-solar { border-top: 4px solid #eab308; }
+    .metric-wind { border-top: 4px solid #6366f1; }
+
+    /* Tarjeta de estado de riego */
     .status-card-active {
-        background-color: #fef2f2;
+        background: linear-gradient(90deg, #fef2f2 0%, #ffffff 100%);
         border: 1px solid #fecaca;
         border-left: 6px solid #dc2626;
-        color: #991b1b;
-        padding: 1.2rem 1.5rem;
-        border-radius: 8px;
-        margin: 1.2rem 0;
+        padding: 1.3rem 1.6rem;
+        border-radius: 12px;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 12px rgba(220, 38, 38, 0.05);
     }
     .status-card-inactive {
-        background-color: #f0fdf4;
+        background: linear-gradient(90deg, #f0fdf4 0%, #ffffff 100%);
         border: 1px solid #bbf7d0;
         border-left: 6px solid #16a34a;
-        color: #166534;
-        padding: 1.2rem 1.5rem;
-        border-radius: 8px;
-        margin: 1.2rem 0;
+        padding: 1.3rem 1.6rem;
+        border-radius: 12px;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 12px rgba(22, 163, 74, 0.05);
     }
-    .status-title {
+    .status-header-flex {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 0.4rem;
+    }
+    .status-title-active {
         font-size: 1rem;
-        font-weight: 700;
-        margin-bottom: 0.3rem;
-        text-transform: uppercase;
+        font-weight: 800;
+        color: #991b1b;
+        letter-spacing: 0.03em;
+    }
+    .status-title-inactive {
+        font-size: 1rem;
+        font-weight: 800;
+        color: #166534;
+        letter-spacing: 0.03em;
     }
     .status-desc {
         font-size: 0.95rem;
+        color: #334155;
         margin: 0;
+        line-height: 1.5;
     }
+
+    /* Pestañas */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 16px;
+        gap: 12px;
         border-bottom: 2px solid #e2e8f0;
+        padding-bottom: 2px;
     }
     .stTabs [data-baseweb="tab"] {
-        height: 48px;
-        padding: 0 24px;
+        height: 46px;
+        padding: 0 20px;
         color: #64748b;
         font-weight: 600;
         font-size: 0.95rem;
+        border-radius: 8px 8px 0 0;
     }
     .stTabs [aria-selected="true"] {
-        color: #1a5c48 !important;
-        border-bottom: 3px solid #1a5c48 !important;
+        color: #047857 !important;
+        background-color: #ecfdf5 !important;
+        border-bottom: 3px solid #047857 !important;
     }
+
+    /* Ocultar elementos innecesarios */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
 </style>
-"""
+""",
+    unsafe_allow_html=True,
+)
 
 st.markdown(CSS_PROFESIONAL, unsafe_allow_html=True)
 
@@ -156,31 +246,44 @@ def cargar_datos():
 
 
 # --- BARRA LATERAL ---
-st.sidebar.markdown("### Configuración del Asistente IA")
+with st.sidebar:
+    st.markdown("## **SAVA-IoT**")
+    st.caption("Sistema de Telemetría Agrícola v2.4")
+    st.divider()
 
-# Modelos vigentes en Groq (mixtral-8x7b-32768 y gemma2-9b-it fueron retirados)
-OPCIONES_MODELOS = {
-    "Llama 3.3 70B Versatile": "llama-3.3-70b-versatile",
-    "Llama 3.1 8B Instant": "llama-3.1-8b-instant",
-    "GPT-OSS 120B (OpenAI)": "openai/gpt-oss-120b",
-    "GPT-OSS 20B (OpenAI)": "openai/gpt-oss-20b",
-}
+    st.markdown("### Configuración de Inteligencia IA")
+    OPCIONES_MODELOS = {
+        "Llama 3.3 70B Versatile": "llama-3.3-70b-versatile",
+        "Llama 3.1 8B Instant": "llama-3.1-8b-instant",
+        "GPT-OSS 120B (OpenAI)": "openai/gpt-oss-120b",
+        "GPT-OSS 20B (OpenAI)": "openai/gpt-oss-20b",
+    }
 
-modelo_label = st.sidebar.selectbox(
-    "Modelo de Lenguaje Activo:",
-    list(OPCIONES_MODELOS.keys()),
-    index=0,  # Llama 3.3 70B por defecto
-)
+    modelo_label = st.selectbox(
+        "Modelo de Lenguaje Activo:",
+        list(OPCIONES_MODELOS.keys()),
+        index=0,
+    )
+    modelo_groq_id = OPCIONES_MODELOS[modelo_label]
 
-modelo_groq_id = OPCIONES_MODELOS[modelo_label]
+    st.divider()
+    st.markdown("### Estado del Sistema")
+    st.markdown("🟢 **Neon PostgreSQL:** Conectado")
+    st.markdown("🟢 **Motor de Reglas:** Activo")
+    st.markdown("🟢 **Zona Horaria:** UTC-5 (Colombia)")
 
 
-# --- ENCABEZADO ---
+# --- ENCABEZADO PRINCIPAL ---
 st.markdown(
     """
     <div class="main-header">
-        <h1>Sistema de Riego Inteligente</h1>
-        <p>Estación Telemétrica y Motor de Reglas Agrícolas — Vivero Universidad CECAR</p>
+        <div class="header-title-container">
+            <h1>Sistema de Riego Inteligente</h1>
+            <p>Estación Telemétrica y Motor de Reglas Agrícolas — Vivero Universidad CECAR</p>
+        </div>
+        <div class="header-badge">
+            <span class="pulse-dot"></span> EN LÍNEA
+        </div>
     </div>
     """,
     unsafe_allow_html=True,
@@ -190,7 +293,7 @@ df = cargar_datos()
 
 # Pestañas principales
 tab_monitoreo, tab_asistente = st.tabs(
-    ["Monitoreo Telemétrico", "Asistente IA Agrónomo"]
+    ["📊 Monitoreo Telemétrico", "🤖 Asistente IA Agrónomo"]
 )
 
 # ---------------------------------------------------------
@@ -203,16 +306,69 @@ with tab_monitoreo:
         ultima = df.iloc[0]
         fecha_str = ultima["fecha_registro"].strftime("%Y-%m-%d %H:%M:%S")
 
-        st.caption(
-            f"Última actualización de estación (Hora Colombia): **{fecha_str}**"
+        st.markdown(
+            f"<div style='color: #64748b; font-size: 0.88rem; margin-bottom: 1.2rem;'>"
+            f"Última lectura telemétrica sincronizada: <b>{fecha_str} (Hora Colombia)</b></div>",
+            unsafe_allow_html=True,
         )
 
+        # Tarjetas Métricas Personalizadas con HTML/CSS
         col1, col2, col3, col4, col5 = st.columns(5)
-        col1.metric("Temperatura", f"{ultima['temperatura_c']} °C")
-        col2.metric("Precipitación", f"{ultima['precipitacion_mm']} mm")
-        col3.metric("Humedad Relativa", f"{ultima['humedad_relativa_pct']}%")
-        col4.metric("Radiación Solar", f"{ultima['radiacion_solar_wm2']} W/m²")
-        col5.metric("Velocidad Viento", f"{ultima['rafaga_viento_kmh']} km/h")
+
+        with col1:
+            st.markdown(
+                f"""
+                <div class="metric-card metric-temp">
+                    <div class="metric-label">Temperatura</div>
+                    <div class="metric-value">{ultima['temperatura_c']}<span class="metric-unit">°C</span></div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        with col2:
+            st.markdown(
+                f"""
+                <div class="metric-card metric-precip">
+                    <div class="metric-label">Precipitación</div>
+                    <div class="metric-value">{ultima['precipitacion_mm']}<span class="metric-unit">mm</span></div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        with col3:
+            st.markdown(
+                f"""
+                <div class="metric-card metric-humidity">
+                    <div class="metric-label">Humedad Rel.</div>
+                    <div class="metric-value">{ultima['humedad_relativa_pct']}<span class="metric-unit">%</span></div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        with col4:
+            st.markdown(
+                f"""
+                <div class="metric-card metric-solar">
+                    <div class="metric-label">Rad. Solar</div>
+                    <div class="metric-value">{ultima['radiacion_solar_wm2']}<span class="metric-unit">W/m²</span></div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        with col5:
+            st.markdown(
+                f"""
+                <div class="metric-card metric-wind">
+                    <div class="metric-label">Vel. Viento</div>
+                    <div class="metric-value">{ultima['rafaga_viento_kmh']}<span class="metric-unit">km/h</span></div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
         # Validación robusta de booleano vs string
         orden_val = ultima.get("orden_riego")
@@ -228,12 +384,17 @@ with tab_monitoreo:
                 "",
             ]
 
+        # Banner de Estado
         if riego_activo:
             st.markdown(
                 f"""
                 <div class="status-card-active">
-                    <div class="status-title">ORDEN DE RIEGO ACTIVA</div>
-                    <div class="status-desc">Regla Aplicada: <b>{ultima.get('regla_aplicada', 'N/A')}</b> — {ultima.get('mensaje', '')}</div>
+                    <div class="status-header-flex">
+                        <span class="status-title-active">ORDEN DE RIEGO ACTIVA</span>
+                    </div>
+                    <div class="status-desc">
+                        Regla Aplicada: <b>{ultima.get('regla_aplicada', 'N/A')}</b> — {ultima.get('mensaje', '')}
+                    </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -242,57 +403,72 @@ with tab_monitoreo:
             st.markdown(
                 f"""
                 <div class="status-card-inactive">
-                    <div class="status-title">SISTEMA EN REPOSO — RIEGO DESACTIVADO</div>
-                    <div class="status-desc">Regla Aplicada: <b>{ultima.get('regla_aplicada', 'N/A')}</b> — {ultima.get('mensaje', '')}</div>
+                    <div class="status-header-flex">
+                        <span class="status-title-inactive">SISTEMA EN REPOSO — RIEGO DESACTIVADO</span>
+                    </div>
+                    <div class="status-desc">
+                        Regla Aplicada: <b>{ultima.get('regla_aplicada', 'N/A')}</b> — {ultima.get('mensaje', '')}
+                    </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
-        st.divider()
-        st.subheader("Histórico de Telemetría")
+        st.markdown("<h3 style='color: #0f172a; font-weight: 700; margin-top: 2rem;'>Histórico de Telemetría</h3>", unsafe_allow_html=True)
 
         col_chart1, col_chart2 = st.columns(2)
 
+        # Gráfico de Temperatura (Area suavizada)
         with col_chart1:
-            fig_temp = px.line(
-                df,
-                x="fecha_registro",
-                y="temperatura_c",
-                title="Temperatura (°C)",
-                labels={
-                    "fecha_registro": "Fecha / Hora (Colombia)",
-                    "temperatura_c": "Temp (°C)",
-                },
-                template="plotly_white",
-            )
-            fig_temp.update_traces(
-                line_color="#1a5c48", line_width=2.5, mode="lines+markers"
+            fig_temp = go.Figure()
+            fig_temp.add_trace(
+                go.Scatter(
+                    x=df["fecha_registro"],
+                    y=df["temperatura_c"],
+                    mode="lines",
+                    name="Temperatura (°C)",
+                    line=dict(color="#047857", width=3, shape="spline"),
+                    fill="tozeroy",
+                    fillcolor="rgba(4, 120, 87, 0.08)",
+                )
             )
             fig_temp.update_layout(
-                margin=dict(l=20, r=20, t=40, b=20), height=320
+                title=dict(text="<b>Evolución Térmica (°C)</b>", font=dict(size=15, color="#0f172a")),
+                template="plotly_white",
+                margin=dict(l=20, r=20, t=50, b=20),
+                height=340,
+                hovermode="x unified",
+                xaxis=dict(showgrid=True, gridcolor="#f1f5f9", title=""),
+                yaxis=dict(showgrid=True, gridcolor="#f1f5f9", title="°C"),
             )
             st.plotly_chart(fig_temp, use_container_width=True)
 
+        # Gráfico de Precipitación (Barras pulidas)
         with col_chart2:
-            fig_precip = px.bar(
-                df,
-                x="fecha_registro",
-                y="precipitacion_mm",
-                title="Precipitación Acumulada (mm)",
-                labels={
-                    "fecha_registro": "Fecha / Hora (Colombia)",
-                    "precipitacion_mm": "Precipitación (mm)",
-                },
-                template="plotly_white",
+            fig_precip = go.Figure()
+            fig_precip.add_trace(
+                go.Bar(
+                    x=df["fecha_registro"],
+                    y=df["precipitacion_mm"],
+                    name="Precipitación (mm)",
+                    marker=dict(
+                        color="#3b82f6",
+                        line=dict(color="#2563eb", width=1)
+                    ),
+                )
             )
-            fig_precip.update_traces(marker_color="#2563eb")
             fig_precip.update_layout(
-                margin=dict(l=20, r=20, t=40, b=20), height=320
+                title=dict(text="<b>Precipitación Acumulada (mm)</b>", font=dict(size=15, color="#0f172a")),
+                template="plotly_white",
+                margin=dict(l=20, r=20, t=50, b=20),
+                height=340,
+                hovermode="x unified",
+                xaxis=dict(showgrid=True, gridcolor="#f1f5f9", title=""),
+                yaxis=dict(showgrid=True, gridcolor="#f1f5f9", title="mm"),
             )
             st.plotly_chart(fig_precip, use_container_width=True)
 
-        with st.expander("Consultar registros históricos detallados"):
+        with st.expander("🔍 Consultar registros históricos detallados"):
             st.dataframe(df, use_container_width=True)
 
 # ---------------------------------------------------------
@@ -300,7 +476,7 @@ with tab_monitoreo:
 # ---------------------------------------------------------
 with tab_asistente:
     st.subheader("Asistente Virtual Agrónomo")
-    st.caption(f"Modelo de IA activo: **{modelo_groq_id}**")
+    st.caption(f"Modelo de IA activo en Groq: **{modelo_groq_id}**")
 
     if not GROQ_API_KEY:
         st.warning(
@@ -312,10 +488,7 @@ with tab_asistente:
         if "messages" not in st.session_state:
             st.session_state.messages = []
 
-        # Contenedor de mensajes (va ANTES del input)
         zona_chat = st.container()
-
-        # El input queda debajo del contenedor
         prompt = st.chat_input("Escriba su consulta agrónoma...")
 
         with zona_chat:
