@@ -34,7 +34,8 @@ CSS_PROFESIONAL = """
 <style>
     /* Fondo general */
     .stApp {
-        background-color: #f8fafc;
+        background-color: #0b1220;
+        color: #e2e8f0;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
@@ -45,7 +46,7 @@ CSS_PROFESIONAL = """
         border-radius: 16px;
         color: #ffffff;
         margin-bottom: 2rem;
-        box-shadow: 0 10px 25px -5px rgba(6, 78, 59, 0.25);
+        box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.6);
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -94,22 +95,22 @@ CSS_PROFESIONAL = """
 
     /* Tarjetas métricas personalizadas */
     .metric-card {
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
+        background-color: #111a2e;
+        border: 1px solid #1e293b;
         border-radius: 12px;
         padding: 1.2rem 1rem;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+        box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.5);
         transition: transform 0.2s ease, box-shadow 0.2s ease;
         position: relative;
         overflow: hidden;
     }
     .metric-card:hover {
         transform: translateY(-2px);
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.06);
+        box-shadow: 0 12px 20px -3px rgba(0, 0, 0, 0.7);
     }
     .metric-label {
         font-size: 0.75rem;
-        color: #64748b;
+        color: #94a3b8;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.05em;
@@ -117,14 +118,14 @@ CSS_PROFESIONAL = """
     }
     .metric-value {
         font-size: 1.8rem;
-        color: #0f172a;
+        color: #f1f5f9;
         font-weight: 800;
         line-height: 1.1;
     }
     .metric-unit {
         font-size: 1rem;
         font-weight: 600;
-        color: #64748b;
+        color: #94a3b8;
         margin-left: 2px;
     }
 
@@ -137,18 +138,18 @@ CSS_PROFESIONAL = """
 
     /* Tarjeta de estado de riego */
     .status-card-active {
-        background: linear-gradient(90deg, #fef2f2 0%, #ffffff 100%);
-        border: 1px solid #fecaca;
-        border-left: 6px solid #dc2626;
+        background: linear-gradient(90deg, rgba(220, 38, 38, 0.22) 0%, #111a2e 100%);
+        border: 1px solid #7f1d1d;
+        border-left: 6px solid #ef4444;
         padding: 1.3rem 1.6rem;
         border-radius: 12px;
         margin: 1.5rem 0;
         box-shadow: 0 4px 12px rgba(220, 38, 38, 0.05);
     }
     .status-card-inactive {
-        background: linear-gradient(90deg, #f0fdf4 0%, #ffffff 100%);
-        border: 1px solid #bbf7d0;
-        border-left: 6px solid #16a34a;
+        background: linear-gradient(90deg, rgba(22, 163, 74, 0.22) 0%, #111a2e 100%);
+        border: 1px solid #14532d;
+        border-left: 6px solid #22c55e;
         padding: 1.3rem 1.6rem;
         border-radius: 12px;
         margin: 1.5rem 0;
@@ -163,18 +164,18 @@ CSS_PROFESIONAL = """
     .status-title-active {
         font-size: 1rem;
         font-weight: 800;
-        color: #991b1b;
+        color: #fca5a5;
         letter-spacing: 0.03em;
     }
     .status-title-inactive {
         font-size: 1rem;
         font-weight: 800;
-        color: #166534;
+        color: #86efac;
         letter-spacing: 0.03em;
     }
     .status-desc {
         font-size: 0.95rem;
-        color: #334155;
+        color: #cbd5e1;
         margin: 0;
         line-height: 1.5;
     }
@@ -182,21 +183,38 @@ CSS_PROFESIONAL = """
     /* Pestañas */
     .stTabs [data-baseweb="tab-list"] {
         gap: 12px;
-        border-bottom: 2px solid #e2e8f0;
+        border-bottom: 2px solid #1e293b;
         padding-bottom: 2px;
     }
     .stTabs [data-baseweb="tab"] {
         height: 46px;
         padding: 0 20px;
-        color: #64748b;
+        color: #94a3b8;
         font-weight: 600;
         font-size: 0.95rem;
         border-radius: 8px 8px 0 0;
     }
     .stTabs [aria-selected="true"] {
-        color: #047857 !important;
-        background-color: #ecfdf5 !important;
-        border-bottom: 3px solid #047857 !important;
+        color: #34d399 !important;
+        background-color: rgba(16, 185, 129, 0.12) !important;
+        border-bottom: 3px solid #34d399 !important;
+    }
+
+    /* Tarjetas contenedoras (termómetro y tacómetro) */
+    .st-key-card_termo, .st-key-card_viento {
+        background-color: #111a2e;
+        border: 1px solid #1e293b;
+        border-radius: 12px;
+        padding: 1rem;
+        box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Barra superior y expander oscuros */
+    [data-testid="stHeader"] { background: transparent; }
+    [data-testid="stExpander"] {
+        background-color: #111a2e;
+        border: 1px solid #1e293b;
+        border-radius: 12px;
     }
 
     /* Ocultar elementos innecesarios */
@@ -269,14 +287,14 @@ def html_termometro(temp):
     for val in range(0, 50, 10):
         y = 235 - val / 45 * 205
         marcas += (
-            f'<line x1="80" y1="{y:.1f}" x2="92" y2="{y:.1f}" stroke="#94a3b8" stroke-width="2"/>'
-            f'<text x="97" y="{y + 4:.1f}" font-size="11" fill="#64748b">{val}°</text>'
+            f'<line x1="80" y1="{y:.1f}" x2="92" y2="{y:.1f}" stroke="#64748b" stroke-width="2"/>'
+            f'<text x="97" y="{y + 4:.1f}" font-size="11" fill="#94a3b8">{val}°</text>'
         )
 
     svg = (
         '<svg viewBox="0 0 130 300" width="130" height="300" xmlns="http://www.w3.org/2000/svg">'
-        '<rect x="45" y="20" width="30" height="220" rx="15" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="2"/>'
-        f'<circle cx="60" cy="255" r="30" fill="{color}" stroke="#cbd5e1" stroke-width="2"/>'
+        '<rect x="45" y="20" width="30" height="220" rx="15" fill="#1e293b" stroke="#334155" stroke-width="2"/>'
+        f'<circle cx="60" cy="255" r="30" fill="{color}" stroke="#334155" stroke-width="2"/>'
         f'<rect x="52" y="{y_top:.1f}" width="16" height="{255 - y_top:.1f}" rx="8" fill="{color}"/>'
         '<ellipse cx="50" cy="247" rx="6" ry="9" fill="#ffffff" opacity="0.35"/>'
         f"{marcas}"
@@ -302,12 +320,12 @@ def crear_tacometro(velocidad):
         go.Indicator(
             mode="gauge+number",
             value=v,
-            number={"suffix": " km/h", "font": {"size": 34, "color": "#0f172a"}},
-            title={"text": "<b>VELOCIDAD DEL VIENTO</b>", "font": {"size": 14, "color": "#64748b"}},
+            number={"suffix": " km/h", "font": {"size": 34, "color": "#f1f5f9"}},
+            title={"text": "<b>VELOCIDAD DEL VIENTO</b>", "font": {"size": 14, "color": "#94a3b8"}},
             gauge={
-                "axis": {"range": [0, maximo], "dtick": 10, "tickwidth": 2, "tickcolor": "#475569"},
+                "axis": {"range": [0, maximo], "dtick": 10, "tickwidth": 2, "tickcolor": "#94a3b8", "tickfont": {"color": "#94a3b8"}},
                 "bar": {"color": "rgba(0,0,0,0)"},
-                "bgcolor": "white",
+                "bgcolor": "rgba(0,0,0,0)",
                 "borderwidth": 0,
                 "steps": [
                     {"range": [0, 15], "color": "#22c55e"},
@@ -316,7 +334,7 @@ def crear_tacometro(velocidad):
                     {"range": [50, maximo], "color": "#dc2626"},
                 ],
                 "threshold": {
-                    "line": {"color": "#0f172a", "width": 6},
+                    "line": {"color": "#f8fafc", "width": 6},
                     "thickness": 0.85,
                     "value": min(v, maximo),
                 },
@@ -327,6 +345,7 @@ def crear_tacometro(velocidad):
         height=300,
         margin=dict(l=30, r=30, t=60, b=10),
         paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#e2e8f0"),
     )
     return fig
 
@@ -393,8 +412,8 @@ with tab_monitoreo:
         fecha_str = ultima["fecha_registro"].strftime("%Y-%m-%d %H:%M:%S")
 
         st.markdown(
-            f"<div style='color: #64748b; font-size: 0.88rem; margin-bottom: 1.2rem;'>"
-            f"Última lectura telemétrica sincronizada: <b>{fecha_str} (Hora Colombia)</b></div>",
+            f"<div style='color: #94a3b8; font-size: 0.88rem; margin-bottom: 1.2rem;'>"
+            f"Última lectura telemétrica sincronizada: <b style='color:#e2e8f0;'>{fecha_str} (Hora Colombia)</b></div>",
             unsafe_allow_html=True,
         )
 
@@ -402,11 +421,11 @@ with tab_monitoreo:
         col_termo, col_viento, col_resto = st.columns([1, 1.2, 1])
 
         with col_termo:
-            with st.container(border=True):
+            with st.container(key="card_termo"):
                 st.markdown(html_termometro(ultima["temperatura_c"]), unsafe_allow_html=True)
 
         with col_viento:
-            with st.container(border=True):
+            with st.container(key="card_viento"):
                 st.plotly_chart(
                     crear_tacometro(ultima["rafaga_viento_kmh"]),
                     use_container_width=True,
@@ -472,7 +491,7 @@ with tab_monitoreo:
             )
 
         st.markdown(
-            "<h3 style='color: #0f172a; font-weight: 700; margin-top: 2rem;'>Histórico de Telemetría</h3>",
+            "<h3 style='color: #f1f5f9; font-weight: 700; margin-top: 2rem;'>Histórico de Telemetría</h3>",
             unsafe_allow_html=True,
         )
 
@@ -487,22 +506,24 @@ with tab_monitoreo:
                     y=df["temperatura_c"],
                     mode="lines",
                     name="Temperatura (°C)",
-                    line=dict(color="#047857", width=3, shape="spline"),
+                    line=dict(color="#34d399", width=3, shape="spline"),
                     fill="tozeroy",
-                    fillcolor="rgba(4, 120, 87, 0.08)",
+                    fillcolor="rgba(52, 211, 153, 0.12)",
                 )
             )
             fig_temp.update_layout(
                 title=dict(
                     text="<b>Evolución Térmica (°C)</b>",
-                    font=dict(size=15, color="#0f172a"),
+                    font=dict(size=15, color="#e2e8f0"),
                 ),
-                template="plotly_white",
+                template="plotly_dark",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
                 margin=dict(l=20, r=20, t=50, b=20),
                 height=340,
                 hovermode="x unified",
-                xaxis=dict(showgrid=True, gridcolor="#f1f5f9", title=""),
-                yaxis=dict(showgrid=True, gridcolor="#f1f5f9", title="°C"),
+                xaxis=dict(showgrid=True, gridcolor="#1e293b", title=""),
+                yaxis=dict(showgrid=True, gridcolor="#1e293b", title="°C"),
             )
             st.plotly_chart(fig_temp, use_container_width=True)
 
@@ -515,22 +536,24 @@ with tab_monitoreo:
                     y=df["precipitacion_mm"],
                     name="Precipitación (mm)",
                     marker=dict(
-                        color="#3b82f6",
-                        line=dict(color="#2563eb", width=1),
+                        color="#60a5fa",
+                        line=dict(color="#3b82f6", width=1),
                     ),
                 )
             )
             fig_precip.update_layout(
                 title=dict(
                     text="<b>Precipitación Acumulada (mm)</b>",
-                    font=dict(size=15, color="#0f172a"),
+                    font=dict(size=15, color="#e2e8f0"),
                 ),
-                template="plotly_white",
+                template="plotly_dark",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
                 margin=dict(l=20, r=20, t=50, b=20),
                 height=340,
                 hovermode="x unified",
-                xaxis=dict(showgrid=True, gridcolor="#f1f5f9", title=""),
-                yaxis=dict(showgrid=True, gridcolor="#f1f5f9", title="mm"),
+                xaxis=dict(showgrid=True, gridcolor="#1e293b", title=""),
+                yaxis=dict(showgrid=True, gridcolor="#1e293b", title="mm"),
             )
             st.plotly_chart(fig_precip, use_container_width=True)
 
