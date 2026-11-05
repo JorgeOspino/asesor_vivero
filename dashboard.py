@@ -23,7 +23,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # Configuración inicial de la página
 st.set_page_config(
-    page_title="SAVA-IoT | Vivero CECAR",
+    page_title="SAVA-IoT ",
     page_icon="🌱",
     layout="wide",
     initial_sidebar_state="expanded",
