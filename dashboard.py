@@ -204,8 +204,9 @@ CSS_PROFESIONAL = """
     footer {visibility: hidden;}
 </style>
 """,
-    unsafe_allow_html=True,
-)
+
+#    unsafe_allow_html=True,
+#)
 
 st.markdown(CSS_PROFESIONAL, unsafe_allow_html=True)
 
