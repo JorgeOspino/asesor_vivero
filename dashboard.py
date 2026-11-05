@@ -243,6 +243,94 @@ def cargar_datos():
         return pd.DataFrame()
 
 
+def color_temperatura(t):
+    """Devuelve (color, estado) según el rango de temperatura."""
+    if t < 15:
+        return "#3b82f6", "FRÍO"
+    if t < 22:
+        return "#06b6d4", "FRESCO"
+    if t < 27:
+        return "#22c55e", "ÓPTIMA"
+    if t < 32:
+        return "#eab308", "CÁLIDO"
+    if t < 36:
+        return "#f97316", "CALUROSO"
+    return "#dc2626", "CALOR EXTREMO"
+
+
+def html_termometro(temp):
+    """Termómetro SVG cuyo mercurio cambia de altura y color con la temperatura."""
+    t = float(temp)
+    color, estado = color_temperatura(t)
+    frac = max(0.0, min(1.0, t / 45))
+    y_top = 235 - frac * 205
+
+    marcas = ""
+    for val in range(0, 50, 10):
+        y = 235 - val / 45 * 205
+        marcas += (
+            f'<line x1="80" y1="{y:.1f}" x2="92" y2="{y:.1f}" stroke="#94a3b8" stroke-width="2"/>'
+            f'<text x="97" y="{y + 4:.1f}" font-size="11" fill="#64748b">{val}°</text>'
+        )
+
+    svg = (
+        '<svg viewBox="0 0 130 300" width="130" height="300" xmlns="http://www.w3.org/2000/svg">'
+        '<rect x="45" y="20" width="30" height="220" rx="15" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="2"/>'
+        f'<circle cx="60" cy="255" r="30" fill="{color}" stroke="#cbd5e1" stroke-width="2"/>'
+        f'<rect x="52" y="{y_top:.1f}" width="16" height="{255 - y_top:.1f}" rx="8" fill="{color}"/>'
+        '<ellipse cx="50" cy="247" rx="6" ry="9" fill="#ffffff" opacity="0.35"/>'
+        f"{marcas}"
+        "</svg>"
+    )
+
+    return (
+        '<div style="display:flex;align-items:center;justify-content:center;gap:1rem;">'
+        f"{svg}"
+        '<div><div class="metric-label">Temperatura</div>'
+        f'<div class="metric-value" style="color:{color};font-size:2.6rem;">{t:.1f}<span class="metric-unit">°C</span></div>'
+        f'<div style="display:inline-block;margin-top:0.5rem;padding:0.25rem 0.8rem;border-radius:20px;'
+        f'background:{color}22;color:{color};font-weight:700;font-size:0.8rem;">{estado}</div></div>'
+        "</div>"
+    )
+
+
+def crear_tacometro(velocidad):
+    """Tacómetro (gauge) para la velocidad del viento."""
+    v = float(velocidad)
+    maximo = 80
+    fig = go.Figure(
+        go.Indicator(
+            mode="gauge+number",
+            value=v,
+            number={"suffix": " km/h", "font": {"size": 34, "color": "#0f172a"}},
+            title={"text": "<b>VELOCIDAD DEL VIENTO</b>", "font": {"size": 14, "color": "#64748b"}},
+            gauge={
+                "axis": {"range": [0, maximo], "dtick": 10, "tickwidth": 2, "tickcolor": "#475569"},
+                "bar": {"color": "rgba(0,0,0,0)"},
+                "bgcolor": "white",
+                "borderwidth": 0,
+                "steps": [
+                    {"range": [0, 15], "color": "#22c55e"},
+                    {"range": [15, 30], "color": "#eab308"},
+                    {"range": [30, 50], "color": "#f97316"},
+                    {"range": [50, maximo], "color": "#dc2626"},
+                ],
+                "threshold": {
+                    "line": {"color": "#0f172a", "width": 6},
+                    "thickness": 0.85,
+                    "value": min(v, maximo),
+                },
+            },
+        )
+    )
+    fig.update_layout(
+        height=300,
+        margin=dict(l=30, r=30, t=60, b=10),
+        paper_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
+
+
 # --- BARRA LATERAL ---
 with st.sidebar:
     st.markdown("## **SAVA-IoT**")
@@ -310,63 +398,34 @@ with tab_monitoreo:
             unsafe_allow_html=True,
         )
 
-        # Tarjetas Métricas Personalizadas con HTML/CSS
-        col1, col2, col3, col4, col5 = st.columns(5)
+        # Termómetro + Tacómetro + métricas restantes
+        col_termo, col_viento, col_resto = st.columns([1, 1.2, 1])
 
-        with col1:
-            st.markdown(
-                f"""
-                <div class="metric-card metric-temp">
-                    <div class="metric-label">Temperatura</div>
-                    <div class="metric-value">{ultima['temperatura_c']}<span class="metric-unit">°C</span></div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+        with col_termo:
+            with st.container(border=True):
+                st.markdown(html_termometro(ultima["temperatura_c"]), unsafe_allow_html=True)
 
-        with col2:
-            st.markdown(
-                f"""
-                <div class="metric-card metric-precip">
-                    <div class="metric-label">Precipitación</div>
-                    <div class="metric-value">{ultima['precipitacion_mm']}<span class="metric-unit">mm</span></div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+        with col_viento:
+            with st.container(border=True):
+                st.plotly_chart(
+                    crear_tacometro(ultima["rafaga_viento_kmh"]),
+                    use_container_width=True,
+                )
 
-        with col3:
-            st.markdown(
-                f"""
-                <div class="metric-card metric-humidity">
-                    <div class="metric-label">Humedad Rel.</div>
-                    <div class="metric-value">{ultima['humedad_relativa_pct']}<span class="metric-unit">%</span></div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        with col4:
-            st.markdown(
-                f"""
-                <div class="metric-card metric-solar">
-                    <div class="metric-label">Rad. Solar</div>
-                    <div class="metric-value">{ultima['radiacion_solar_wm2']}<span class="metric-unit">W/m²</span></div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        with col5:
-            st.markdown(
-                f"""
-                <div class="metric-card metric-wind">
-                    <div class="metric-label">Vel. Viento</div>
-                    <div class="metric-value">{ultima['rafaga_viento_kmh']}<span class="metric-unit">km/h</span></div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+        with col_resto:
+            tarjetas = [
+                ("metric-precip", "Precipitación", ultima["precipitacion_mm"], "mm"),
+                ("metric-humidity", "Humedad Rel.", ultima["humedad_relativa_pct"], "%"),
+                ("metric-solar", "Rad. Solar", ultima["radiacion_solar_wm2"], "W/m²"),
+            ]
+            for clase, etiqueta, valor, unidad in tarjetas:
+                st.markdown(
+                    f'<div class="metric-card {clase}" style="margin-bottom:0.8rem;">'
+                    f'<div class="metric-label">{etiqueta}</div>'
+                    f'<div class="metric-value">{valor}<span class="metric-unit">{unidad}</span></div>'
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
 
         # Validación robusta de booleano vs string
         orden_val = ultima.get("orden_riego")
