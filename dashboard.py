@@ -37,7 +37,7 @@ CSS_PROFESIONAL = """
         background-color: #f8fafc;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
-    
+
     /* Encabezado principal */
     .main-header {
         background: linear-gradient(135deg, #064e3b 0%, #047857 50%, #0f766e 100%);
@@ -76,7 +76,7 @@ CSS_PROFESIONAL = """
         align-items: center;
         gap: 8px;
     }
-    
+
     /* Indicador de pulso en vivo */
     .pulse-dot {
         width: 8px;
@@ -203,10 +203,7 @@ CSS_PROFESIONAL = """
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 </style>
-""",
-
-#    unsafe_allow_html=True,
-#)
+"""
 
 st.markdown(CSS_PROFESIONAL, unsafe_allow_html=True)
 
@@ -415,7 +412,10 @@ with tab_monitoreo:
                 unsafe_allow_html=True,
             )
 
-        st.markdown("<h3 style='color: #0f172a; font-weight: 700; margin-top: 2rem;'>Histórico de Telemetría</h3>", unsafe_allow_html=True)
+        st.markdown(
+            "<h3 style='color: #0f172a; font-weight: 700; margin-top: 2rem;'>Histórico de Telemetría</h3>",
+            unsafe_allow_html=True,
+        )
 
         col_chart1, col_chart2 = st.columns(2)
 
@@ -434,7 +434,10 @@ with tab_monitoreo:
                 )
             )
             fig_temp.update_layout(
-                title=dict(text="<b>Evolución Térmica (°C)</b>", font=dict(size=15, color="#0f172a")),
+                title=dict(
+                    text="<b>Evolución Térmica (°C)</b>",
+                    font=dict(size=15, color="#0f172a"),
+                ),
                 template="plotly_white",
                 margin=dict(l=20, r=20, t=50, b=20),
                 height=340,
@@ -454,12 +457,15 @@ with tab_monitoreo:
                     name="Precipitación (mm)",
                     marker=dict(
                         color="#3b82f6",
-                        line=dict(color="#2563eb", width=1)
+                        line=dict(color="#2563eb", width=1),
                     ),
                 )
             )
             fig_precip.update_layout(
-                title=dict(text="<b>Precipitación Acumulada (mm)</b>", font=dict(size=15, color="#0f172a")),
+                title=dict(
+                    text="<b>Precipitación Acumulada (mm)</b>",
+                    font=dict(size=15, color="#0f172a"),
+                ),
                 template="plotly_white",
                 margin=dict(l=20, r=20, t=50, b=20),
                 height=340,
