@@ -545,7 +545,7 @@ st.markdown(
     <div class="main-header">
         <div class="header-title-container">
             <h1>SAVA-IOT</h1>
-            <p>Estación Telemétrica y Motor de Reglas Agrícolas </p>
+            <p>Sistema autónomo de vigilancia agroclimática </p>
         </div>
         <div class="header-badge">
             <span class="pulse-dot"></span> EN LÍNEA
