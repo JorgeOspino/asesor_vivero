@@ -7,6 +7,7 @@ sincronización de zona horaria para Colombia (America/Bogota).
 """
 
 import html
+import json
 import os
 import re
 from dotenv import load_dotenv
@@ -16,6 +17,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import psycopg2
 import streamlit as st
+import streamlit.components.v1 as components
 
 # Cargar variables de entorno
 load_dotenv()
@@ -161,6 +163,15 @@ CSS_PROFESIONAL = """
     @media (max-width: 640px) {
         .main-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
         .header-robot { height: 80px; }
+    }
+
+    .header-robot.hablando {
+        animation: hablar 0.5s ease-in-out infinite alternate;
+        filter: drop-shadow(0 0 16px rgba(52, 211, 153, 0.9));
+    }
+    @keyframes hablar {
+        from { transform: translateY(0) scale(1); }
+        to { transform: translateY(-4px) scale(1.06); }
     }
 
     /* Indicador de pulso en vivo */
@@ -887,6 +898,115 @@ def crear_grafica_lluvia(df, altura=300):
     return fig
 
 
+EXPLICACIONES_RIEGO = {
+    1: ("supresión por lluvia",
+        "Ya llovió lo suficiente, así que el riego se suspende para no desperdiciar agua ni encharcar las plantas."),
+    2: ("estrés térmico",
+        "Hace calor, el aire está seco y hay mucho sol, así que las plantas pierden agua rápido. "
+        "Por eso se ordena un riego profundo, para que el agua llegue bien a las raíces."),
+    3: ("condiciones nominales",
+        "El clima está normal, sin lluvia fuerte ni estrés por calor. Por eso se hace el riego estándar de rutina."),
+    4: ("seguridad por viento",
+        "Hay ráfagas de viento peligrosas. Por eso el riego se suspende y conviene revisar la polisombra del vivero."),
+}
+
+
+def texto_explicacion_riego(fila, activo):
+    """Texto que dice el robot según la regla aplicada (no incluye cifras, para que sea estable)."""
+    m = re.search(r"regla\s*(\d)", _txt(fila.get("regla_aplicada")), re.I)
+    n = int(m.group(1)) if m else None
+    saludo = "Hola, soy el robot de SAVA IoT."
+    if n in EXPLICACIONES_RIEGO:
+        nombre, explicacion = EXPLICACIONES_RIEGO[n]
+        return f"{saludo} El sistema aplicó la regla {n}, {nombre}. {explicacion}"
+    estado = "Hay una orden de riego activa." if activo else "El riego está desactivado."
+    msg = re.sub(r"\s*\([^)]*\)", "", _txt(fila.get("mensaje"))).strip()
+    return f"{saludo} {estado} {msg}".strip()
+
+
+PLANTILLA_ROBOT_VOZ = """<!doctype html><html><head><meta charset="utf-8"><style>
+html,body{margin:0;padding:0;background:transparent;font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;}
+.card{display:flex;align-items:center;gap:18px;box-sizing:border-box;padding:16px 20px;border-radius:14px;
+background:#111a2e;border:1px solid #1e293b;box-shadow:0 4px 12px -2px rgba(0,0,0,.5);}
+.bot{height:110px;width:auto;flex-shrink:0;filter:drop-shadow(0 6px 10px rgba(0,0,0,.35));}
+.card.on .bot{animation:hablar .45s ease-in-out infinite alternate;filter:drop-shadow(0 0 16px rgba(52,211,153,.9));}
+@keyframes hablar{from{transform:translateY(0) scale(1)}to{transform:translateY(-4px) scale(1.06)}}
+.burbuja{flex:1;min-width:0;}
+.etiqueta{font-size:.72rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#34d399;
+margin-bottom:6px;display:flex;align-items:center;gap:10px;}
+.ondas{display:inline-flex;align-items:flex-end;gap:2px;height:14px;opacity:.35;}
+.ondas span{width:3px;height:4px;background:#34d399;border-radius:2px;}
+.card.on .ondas{opacity:1;}
+.card.on .ondas span{animation:onda .6s ease-in-out infinite alternate;}
+.ondas span:nth-child(2){animation-delay:.15s}.ondas span:nth-child(3){animation-delay:.3s}.ondas span:nth-child(4){animation-delay:.45s}
+@keyframes onda{from{height:3px}to{height:14px}}
+p{margin:0 0 12px;color:#cbd5e1;font-size:.95rem;line-height:1.5;}
+button{cursor:pointer;border:0;border-radius:10px;padding:9px 18px;font-weight:700;font-size:.88rem;color:#ecfdf5;
+background:linear-gradient(135deg,#059669,#0d9488);box-shadow:0 4px 14px -2px rgba(16,185,129,.45);font-family:inherit;}
+button:hover{filter:brightness(1.1);}
+.card.on button{background:linear-gradient(135deg,#dc2626,#b91c1c);box-shadow:0 4px 14px -2px rgba(220,38,38,.4);}
+.aviso{color:#fca5a5;font-size:.8rem;margin-top:8px;}
+@media (max-width:520px){.card{flex-direction:column;align-items:flex-start;}.bot{height:80px;}}
+</style></head><body>
+<div class="card" id="card"><img class="bot" src="data:image/png;base64,__ROBOT__" alt="Robot SAVA-IoT"/>
+<div class="burbuja"><div class="etiqueta">El robot te explica el riego
+<span class="ondas"><span></span><span></span><span></span><span></span></span></div>
+<p>__TEXTO_HTML__</p><button id="btn" type="button">Escuchar explicación</button><div class="aviso" id="aviso"></div></div></div>
+<script>
+const TEXTO = __TEXTO_JSON__;
+const card = document.getElementById('card'), btn = document.getElementById('btn'), aviso = document.getElementById('aviso');
+let hablando = false;
+function robotCabecera() { try { return window.parent.document.querySelector('.header-robot'); } catch (e) { return null; } }
+function setEstado(on) {
+  hablando = on;
+  card.classList.toggle('on', on);
+  btn.textContent = on ? 'Detener' : 'Escuchar explicación';
+  const r = robotCabecera(); if (r) r.classList.toggle('hablando', on);
+}
+function elegirVoz() {
+  const vs = window.speechSynthesis.getVoices();
+  return vs.find(v => v.lang === 'es-CO') || vs.find(v => v.lang === 'es-MX') ||
+         vs.find(v => v.lang.startsWith('es-US')) || vs.find(v => v.lang.startsWith('es')) || null;
+}
+function hablar() {
+  if (!('speechSynthesis' in window)) { aviso.textContent = 'Tu navegador no permite reproducir voz.'; return; }
+  if (hablando) { window.speechSynthesis.cancel(); setEstado(false); return; }
+  window.speechSynthesis.cancel();
+  const frases = TEXTO.match(/[^.!?]+[.!?]*/g) || [TEXTO];
+  const voz = elegirVoz();
+  frases.forEach((f, i) => {
+    const u = new SpeechSynthesisUtterance(f.trim());
+    if (voz) { u.voice = voz; u.lang = voz.lang; } else { u.lang = 'es-CO'; }
+    u.rate = 0.98;
+    if (i === 0) u.onstart = () => setEstado(true);
+    if (i === frases.length - 1) u.onend = () => setEstado(false);
+    u.onerror = () => setEstado(false);
+    window.speechSynthesis.speak(u);
+  });
+}
+btn.addEventListener('click', hablar);
+window.addEventListener('pagehide', () => { window.speechSynthesis.cancel(); setEstado(false); });
+const r = robotCabecera();
+if (r) {
+  r.style.cursor = 'pointer';
+  r.title = 'Haz clic para que el robot explique el riego';
+  r.__hablar = hablar;
+  if (!r.__ligado) { r.addEventListener('click', () => r.__hablar && r.__hablar()); r.__ligado = true; }
+}
+</script></body></html>"""
+
+
+def html_robot_voz(texto):
+    """Tarjeta con el robot y un botón que lee la explicación en voz alta (Web Speech API)."""
+    texto_json = json.dumps(texto, ensure_ascii=False).replace("</", "<\\/")
+    return (
+        PLANTILLA_ROBOT_VOZ
+        .replace("__ROBOT__", ROBOT_B64)
+        .replace("__TEXTO_HTML__", html.escape(texto))
+        .replace("__TEXTO_JSON__", texto_json)
+    )
+
+
 def crear_tacometro(velocidad):
     """Tacómetro (gauge) para la velocidad del viento."""
     v = float(velocidad)
@@ -1064,6 +1184,9 @@ def vista_monitoreo():
 
         # Banner de Estado
         st.markdown(html_banner_riego(ultima, riego_activo), unsafe_allow_html=True)
+
+        # El robot explica por voz el tipo de riego
+        components.html(html_robot_voz(texto_explicacion_riego(ultima, riego_activo)), height=210)
 
 with tab_monitoreo:
     st.fragment(vista_monitoreo, run_every=INTERVALO_S)()
