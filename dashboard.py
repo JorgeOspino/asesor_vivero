@@ -932,11 +932,11 @@ with st.sidebar:
     st.divider()
 
     st.markdown("### Configuración de Inteligencia IA")
+    # Los modelos Llama 3.x fueron retirados de Groq el 16/08/2026 (solo Enterprise).
     OPCIONES_MODELOS = {
-        "Llama 3.3 70B Versatile": "llama-3.3-70b-versatile",
-        "Llama 3.1 8B Instant": "llama-3.1-8b-instant",
         "GPT-OSS 120B (OpenAI)": "openai/gpt-oss-120b",
         "GPT-OSS 20B (OpenAI)": "openai/gpt-oss-20b",
+        "Qwen 3.8 27B (Preview)": "qwen/qwen3.8-27b",
     }
 
     modelo_label = st.selectbox(
@@ -1187,11 +1187,18 @@ with tab_asistente:
 
                 with st.chat_message("assistant"):
                     try:
+                        # Qwen 3.8 piensa por defecto; "none" activa el modo de diálogo directo.
+                        extra = (
+                            {"extra_body": {"reasoning_effort": "none"}}
+                            if modelo_groq_id.startswith("qwen/")
+                            else {}
+                        )
                         completion = client.chat.completions.create(
                             model=modelo_groq_id,
                             messages=messages_for_api,
                             temperature=0.6,
                             max_tokens=800,
+                            **extra,
                         )
                         respuesta = completion.choices[0].message.content
                         st.markdown(respuesta)

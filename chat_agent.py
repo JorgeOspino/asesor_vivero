@@ -20,12 +20,12 @@ from rules_engine import (
 )
 from weather_client import get_current_observation
 
-# Lista de modelos de producción activos y vigentes en la API de Groq
+# Modelos activos en Groq. Los Llama 3.x (llama-3.3-70b-versatile y
+# llama-3.1-8b-instant) fueron retirados el 16/08/2026 y ya no responden.
 MODELOS_FALLBACK = [
-    "llama-3.3-70b-versatile",  # Modelo principal de alta precisión
-    "llama-3.1-8b-instant",     # Respaldo ultra rápido y de alta cuota
-    "openai/gpt-oss-120b",      # Respaldo alternativo
-    "openai/gpt-oss-20b",       # Respaldo secundario
+    "openai/gpt-oss-120b",  # Modelo principal de alta precisión
+    "openai/gpt-oss-20b",   # Respaldo ultra rápido y de alta cuota
+    "qwen/qwen3.8-27b",     # Respaldo alternativo (Preview)
 ]
 MAX_MENSAJES_HISTORIAL = 10
 ZONA = "America/Bogota"
@@ -234,11 +234,18 @@ def responder(historial: list[dict]) -> str:
     # Recorre la lista de modelos en orden de prioridad
     for modelo in MODELOS_FALLBACK:
         try:
+            # Qwen 3.8 piensa por defecto; "none" activa el modo de diálogo directo.
+            extra = (
+                {"extra_body": {"reasoning_effort": "none"}}
+                if modelo.startswith("qwen/")
+                else {}
+            )
             respuesta = client.chat.completions.create(
                 model=modelo,
                 messages=mensajes,
                 max_tokens=1500,
                 temperature=0.2,
+                **extra,
             )
             # Retorna la respuesta inmediatamente al tener éxito
             return respuesta.choices[0].message.content
