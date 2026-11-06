@@ -483,7 +483,7 @@ CSS_PROFESIONAL = """
 st.markdown(CSS_PROFESIONAL, unsafe_allow_html=True)
 
 
-@st.cache_data(ttl=1)
+@st.cache_data(ttl=5)
 def cargar_datos():
     """Consulta Neon y ajusta la hora de UTC a Colombia (America/Bogota)."""
     if not DATABASE_URL:
@@ -947,6 +947,22 @@ with st.sidebar:
     modelo_groq_id = OPCIONES_MODELOS[modelo_label]
 
     st.divider()
+    st.markdown("### Actualización automática")
+    OPCIONES_REFRESCO = {
+        "Cada 10 segundos": 10,
+        "Cada 30 segundos": 30,
+        "Cada minuto": 60,
+        "Cada 5 minutos": 300,
+        "Desactivada": None,
+    }
+    refresco_label = st.selectbox(
+        "Refrescar datos:",
+        list(OPCIONES_REFRESCO.keys()),
+        index=1,
+    )
+    INTERVALO_S = OPCIONES_REFRESCO[refresco_label]
+
+    st.divider()
     st.markdown("### Estado del Sistema")
     st.markdown("🟢 **Neon PostgreSQL:** Conectado")
     st.markdown("🟢 **Motor de Reglas:** Activo")
@@ -977,8 +993,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-df = cargar_datos()
-
 # Pestañas principales
 tab_monitoreo, tab_historico, tab_registros, tab_asistente = st.tabs(
     [
@@ -992,7 +1006,8 @@ tab_monitoreo, tab_historico, tab_registros, tab_asistente = st.tabs(
 # ---------------------------------------------------------
 # TAB 1: MONITOREO TELEMÉTRICO
 # ---------------------------------------------------------
-with tab_monitoreo:
+def vista_monitoreo():
+    df = cargar_datos()
     if df.empty:
         st.info("Esperando recepción de datos telemétricos desde Neon...")
     else:
@@ -1050,10 +1065,14 @@ with tab_monitoreo:
         # Banner de Estado
         st.markdown(html_banner_riego(ultima, riego_activo), unsafe_allow_html=True)
 
+with tab_monitoreo:
+    st.fragment(vista_monitoreo, run_every=INTERVALO_S)()
+
 # ---------------------------------------------------------
 # TAB 2: HISTÓRICO (GRÁFICAS EN UNA SOLA VISTA)
 # ---------------------------------------------------------
-with tab_historico:
+def vista_historico():
+    df = cargar_datos()
     if df.empty:
         st.info("Esperando recepción de datos telemétricos desde Neon...")
     else:
@@ -1095,15 +1114,22 @@ with tab_historico:
                 )
                 st.markdown(html_leyenda_lluvia(), unsafe_allow_html=True)
 
+with tab_historico:
+    st.fragment(vista_historico, run_every=INTERVALO_S)()
+
 # ---------------------------------------------------------
 # TAB 3: REGISTROS (TABLA DETALLADA)
 # ---------------------------------------------------------
-with tab_registros:
+def vista_registros():
+    df = cargar_datos()
     if df.empty:
         st.info("Esperando recepción de datos telemétricos desde Neon...")
     else:
         st.markdown(html_titulo_seccion("Registros históricos detallados"), unsafe_allow_html=True)
         st.dataframe(df, use_container_width=True, height=520)
+
+with tab_registros:
+    st.fragment(vista_registros, run_every=INTERVALO_S)()
 
 # ---------------------------------------------------------
 # TAB 4: ASISTENTE IA AGRÓNOMO (MULTI-MODELO)
@@ -1138,8 +1164,9 @@ with tab_asistente:
                     st.markdown(prompt)
 
                 contexto_clima = "Sin datos disponibles."
-                if not df.empty:
-                    u = df.iloc[0]
+                df_ctx = cargar_datos()
+                if not df_ctx.empty:
+                    u = df_ctx.iloc[0]
                     contexto_clima = (
                         f"Lectura ({u['fecha_registro']}): "
                         f"Temperatura: {u['temperatura_c']}°C, Precipitación: {u['precipitacion_mm']}mm, "
