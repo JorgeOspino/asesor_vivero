@@ -16,18 +16,25 @@ import plotly.express as px
 import plotly.graph_objects as go
 import psycopg2
 import streamlit as st
-
 from streamlit_autorefresh import st_autorefresh
-
-# Recargar la página automáticamente cada 60 segundos (60000 ms)
-# Mantiene viva la conexión a Neon y actualiza los indicadores visuales
-st_autorefresh(interval=60000, key="datarefresh")
 
 # Cargar variables de entorno
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+# 1. Configuración inicial de la página (¡DEBE SER EL PRIMER COMANDO DE STREAMLIT!)
+st.set_page_config(
+    page_title="SAVA-IoT",
+    page_icon="🌱",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# 2. Recargar automáticamente la página cada 30 segundos (30000 ms)
+# Al estar probando el flujo cada 3 min, 30s garantiza ver la lectura casi de inmediato.
+st_autorefresh(interval=30000, key="datarefresh")
 
 # Robot de la marca (PNG incrustado en base64, no depende de ningún archivo)
 ROBOT_B64 = (
@@ -46,12 +53,12 @@ ROBOT_B64 = (
     "vV2tNodnS2dIA/LK9/crtc6EJtPCktoIZbyOnIOKee0yK63+tty+bhfGTGg8FTr7w8OpmoKXnpwltLLV5V/RnwdA08nQOAtaXryl7EZLzopaQt"
     "+FQZLeF/Sb6M5WQl92mJfro1X578qxzoSG/UB/evGsDMlZi3pT/sFiXCno49+h03ITZJZWb1O+/UtjP/YFnTkRQVq7ILOcihLamo8iGYlGoXvW"
     "x/blLGjlJUmNPliGxzvK11PLZRTavmkEWl+NY3cv+9CxlIK20AfrCPRa+npfFZqjiMbf2tMJQkP9PSSejPxnONAQfDIY5sMYs/L1VNwVlbTyyx"
-    "jnEWh7lUXMoLrMW5d9aJVl6Dz1JnpPOaNnrpU7PPKX8rI8f6BetYi7Cto44w503eBBgwpae7OubfegsfUaW5ZDLytH/iJ4ctRaX7bPVVxexOsR"
+    "jnEWh7lUXMoLrMW5d9aJVl6Dz1JnpPOaNnrpU7PPQX8rI8f6BetYi7Cto44w503eBBgwpae7OubfegsfUaW5ZDLytH/iJ4ctRaX7bPVVxexOsR"
     "+l07knaiRhpQTXkX7V72TJ75szW1b6LP5CQ8WXvMvrYopX54Zxy0EzUGRB2+3JV0y5ux67czC9cnCvpo7S+K5X3luo6AZqmQz6mFOpd7oW+g71"
     "VE6CCeKebVO77TVJa/UctLEXck+6F5yAbwMdDox/OWoDvaYaDPX33jOFfS2Hl/kZS0c1mghE570MfoF75GKwd61Tbaankp70j1HwENqTSG25aA"
     "s6Ev0DPfdFiVXnfc0/IZen84tCNLFlrXAAKX+6DNNDzz4ytfxyvo1+SrDZ6IyqiZzC8LelFVqdy73ANtVkPPvCnozeFyV9Cm55EQHFvHJZa5HH"
     "FNg5J+WnoKLLWjpS9qnCShWRIagfPfSJLW95h6Jf2o5d5Jg1d2nNT1JOi+Glzncg/0m+h+y3aEVHqipKdFLh1oo9JHEZWWC2F1TUF/PBU67HtA"
-    "T+SCO2s83Cp97VBuhlVp+acy2DX039H7oyaiq7vQe1dE0g30sQyyJHTbodMqvT5bbeQ/9uLAxSUiaeL3AMm/sSCQWHIi0Hdb0GrBltBrqSabDz"
+    "T+SCO2s83Cp97VBuhlVp+acy2DX039H7oyaiq7vQe1dE0g30sQyyJHTbodMqvT5bbeQ/9uLAxSUiaeL3AMm/sSCQWHIi0Hdb0GrBltBrqSamDz"
     "ebjZmS2jd9gI4nQBvHmbid6ubhZCC0vHznqa8eyp+Tdnt9udqUH0pJH9VZpnN0ARFoUpOmoPVHE1XQp/7PIr2bSZ1W475nppVKyzsO5FIumVeH"
     "95p7T391A2KRC82BtlENqSRNjPsf6MAKRS6eybvtWQ+99JXKgqiU7+X6XmOmo66pemHGKeuBrp0QygjGhNGaKw0NnLYjSDh3Jb020KWtFK2dBa"
     "d8FIU2RgAAkhMRWt2xiR7ZdDQu7/qb63qYFKlhlort6szbP8TCrapSgoKBrUdNaLcq22enuwZeq4cDfWmh1aqy9nTmO5STYcLpxUWlC9yqfaQN"
@@ -70,7 +77,7 @@ ROBOT_B64 = (
     "LseDDlfbcdt6hD9aot9jVuhA/lS+lvZLbek6kY4q0lnHPUJLRtsOoBrhkwcd7lTSlAkS3xffB61fyhbXIXmUwS51mkM7HT1Ap51gqzeAz7Aeud"
     "CsKjXjEdbDvme9wTTp9xRBW+lt+MRJk8c8JoBI70obGrfMmb2i24UYIXggtHFqxGBo1XmMORfaoyTdYXrf3JU2LGjgvcW0IpSYUk8VQ6EJMtVC"
     "gvq7EYhpNepsjyB5p/Z0oYWOHsz5GLQFLcBrAWpB2z4wFA8C9IuZ/hv1Z63YtjrqCnqAemjvjoJtBsI4VJVD3jR1Ja09Q5HeU4ax3SYFTubIkS"
-    "/JOKesCM1h6mxs79Y/G+qOTssvgWndCo1aG6D55LjKi1KryND3uQPQdgJSjKwhaO93xxj8hgrmVVQAI5S0HlV7m9Uxam+LykESOY3PRevba7S3"
+    "f/JOKesCM1h6mxs79Y/G+qOTssvgWndCo1aG6D55LjKi1KryND3uQPQdgJSjKwhaO93xxj8hgrmVVQAI5S0HlV7m9Uxam+LykESOY3PRevba7S3"
     "46Zq99bqOY/Yab+oHIBuF0SYUXcr3zxBe9CeX7iwTYrO7nrnWxShFdGUdIHQJLTaJkdbjXx1Ek9kFcGKsM/h+uDYmYYW2qJ2fQ9pjnnS9/C2pN"
     "l7US1onCVoF7r1vbJq2jnnGACz/+djvbzu+3DzGgME7UB3JACtt2DGayRN7XkcdLvgDqDq56KqWGYkAotAJ4kXenabNZrS81hoRzwC28OpAGqJ"
     "o3xoPw3aLFYNtDGEyl7lBQFU+j1YBM7Urt/LvqKrhzkZV0c9eLCM3VnGnUNo0tC2P6TOvnj7A0V1D/hOWtbhJw40dqIO0t3gZo8Hcs1VEprX1T"
@@ -89,14 +96,6 @@ ROBOT_B64 = (
     "S/qftk1iH3+eOTAWjHy2OLSGHOTETG/XkXeFDLT53Ly2ubNZo+EzF9er0ItAXNpB6AVbe0XZkp7A6azghNql6ZyZImPwE05pQyBOgaSRoltsCO"
     "hIY9QMdtq/4WrtRExK6kE4dUYsJpPjTlBMN8dlpFXLw3AVZtbmac90BTldmb68fei8at4Bln4jVfA5bowcWFcC4wxs2aNR+02bKVNfJcCpjxV6"
     "aLQHozHz3hVe3B9xhB/ROO/wOp8BfnoX8N3wAAAABJRU5ErkJggg=="
-)
-
-# Configuración inicial de la página
-st.set_page_config(
-    page_title="SAVA-IoT ",
-    page_icon="🌱",
-    layout="wide",
-    initial_sidebar_state="expanded",
 )
 
 # Estilos CSS Personalizados Avanzados
@@ -226,50 +225,6 @@ CSS_PROFESIONAL = """
     .metric-humidity { border-top: 4px solid #14b8a6; }
     .metric-solar { border-top: 4px solid #eab308; }
     .metric-wind { border-top: 4px solid #6366f1; }
-
-    /* Tarjeta de estado de riego */
-    .status-card-active {
-        background: linear-gradient(90deg, rgba(220, 38, 38, 0.22) 0%, #111a2e 100%);
-        border: 1px solid #7f1d1d;
-        border-left: 6px solid #ef4444;
-        padding: 1.3rem 1.6rem;
-        border-radius: 12px;
-        margin: 1.5rem 0;
-        box-shadow: 0 4px 12px rgba(220, 38, 38, 0.05);
-    }
-    .status-card-inactive {
-        background: linear-gradient(90deg, rgba(22, 163, 74, 0.22) 0%, #111a2e 100%);
-        border: 1px solid #14532d;
-        border-left: 6px solid #22c55e;
-        padding: 1.3rem 1.6rem;
-        border-radius: 12px;
-        margin: 1.5rem 0;
-        box-shadow: 0 4px 12px rgba(22, 163, 74, 0.05);
-    }
-    .status-header-flex {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-bottom: 0.4rem;
-    }
-    .status-title-active {
-        font-size: 1rem;
-        font-weight: 800;
-        color: #fca5a5;
-        letter-spacing: 0.03em;
-    }
-    .status-title-inactive {
-        font-size: 1rem;
-        font-weight: 800;
-        color: #86efac;
-        letter-spacing: 0.03em;
-    }
-    .status-desc {
-        font-size: 0.95rem;
-        color: #cbd5e1;
-        margin: 0;
-        line-height: 1.5;
-    }
 
     /* Banner de estado de riego */
     .riego-card {
@@ -463,7 +418,7 @@ CSS_PROFESIONAL = """
         animation: latido 2.5s ease-in-out infinite;
     }
 
-    /* Tarjetas contenedoras (termómetro y tacómetro) */
+    /* Tarjetas contenedoras */
     .st-key-card_termo, .st-key-card_viento, .st-key-card_hist_temp, .st-key-card_hist_lluvia {
         background-color: #111a2e;
         border: 1px solid #1e293b;
@@ -489,7 +444,7 @@ CSS_PROFESIONAL = """
 st.markdown(CSS_PROFESIONAL, unsafe_allow_html=True)
 
 
-@st.cache_data(ttl=1)
+# Sin @st.cache_data para asegurar lectura en vivo desde Neon
 def cargar_datos():
     """Consulta Neon y ajusta la hora de UTC a Colombia (America/Bogota)."""
     if not DATABASE_URL:
@@ -716,7 +671,7 @@ def formato_hace(fecha):
 
 def html_banner_riego(fila, activo):
     """Banner profesional del estado de riego: icono, regla, diagnóstico y datos."""
-    regla = html.escape(_txt(fila.get("regla_aplicada")) or "N/A").replace(" - ", " · ")
+    regla = html.escape(_txt(fila.get("regla_aplicada")) or "N/A").replace("\n", " · ")
     crudo = _txt(fila.get("mensaje"))
     mensaje = html.escape(re.sub(r"\s*\([^)]*\)", "", crudo).strip() or crudo)
 
@@ -773,411 +728,3 @@ CONFIG_GRAFICA = {
     "displaylogo": False,
     "modeBarButtonsToRemove": ["select2d", "lasso2d", "autoScale2d", "toggleSpikelines"],
 }
-
-
-def html_titulo_seccion(texto):
-    """Título de sección con barra de acento degradada."""
-    return (
-        '<div style="display:flex;align-items:center;gap:0.7rem;margin:2rem 0 1rem;">'
-        '<div style="width:5px;height:28px;border-radius:3px;background:linear-gradient(#34d399,#0ea5e9);"></div>'
-        f'<h3 style="margin:0;color:#f1f5f9;font-weight:800;letter-spacing:-0.01em;">{texto}</h3></div>'
-    )
-
-
-def html_cabecera_grafica(icono, color, titulo, subtitulo, etiqueta, valor):
-    """Cabecera de tarjeta: icono, título, subtítulo y valor destacado a la derecha."""
-    svg = (
-        f'<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="{color}" stroke-width="2" '
-        f'stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="{icono}"/></svg>'
-    )
-    return (
-        '<div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:0.2rem;">'
-        '<div style="display:flex;align-items:center;gap:0.8rem;">'
-        f'<div style="width:42px;height:42px;border-radius:12px;background:{color}22;border:1px solid {color}44;'
-        f'display:flex;align-items:center;justify-content:center;">{svg}</div>'
-        f'<div><div style="font-size:1rem;font-weight:800;color:#f1f5f9;line-height:1.2;">{titulo}</div>'
-        f'<div style="font-size:0.78rem;color:#94a3b8;">{subtitulo}</div></div></div>'
-        f'<div style="text-align:right;"><div class="metric-label" style="margin:0;">{etiqueta}</div>'
-        f'<div style="font-size:1.35rem;font-weight:800;color:{color};line-height:1.1;">{valor}</div></div>'
-        "</div>"
-    )
-
-
-def html_leyenda_lluvia():
-    """Leyenda de intensidades de lluvia (mismos colores que la tarjeta de precipitación)."""
-    items = [("Llovizna", "#7dd3fc"), ("Moderada", "#60a5fa"), ("Fuerte", "#3b82f6"), ("Aguacero", "#818cf8")]
-    puntos = "".join(
-        f'<span style="display:inline-flex;align-items:center;gap:6px;color:#94a3b8;font-size:0.75rem;">'
-        f'<span style="width:9px;height:9px;border-radius:50%;background:{c};"></span>{n}</span>'
-        for n, c in items
-    )
-    return f'<div style="display:flex;flex-wrap:wrap;gap:1rem;justify-content:center;margin-top:0.2rem;">{puntos}</div>'
-
-
-def _estilo_base_grafica(fig, altura=300):
-    """Estilo común: fondo transparente, rejilla sutil, hover oscuro y barra de herramientas discreta."""
-    fig.update_layout(
-        template="plotly_dark",
-        height=altura,
-        margin=dict(l=10, r=10, t=30, b=10),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Inter, -apple-system, sans-serif", color="#94a3b8", size=12),
-        showlegend=False,
-        hovermode="x unified",
-        hoverlabel=dict(bgcolor="#0f172a", bordercolor="#334155", font=dict(color="#e2e8f0", size=12)),
-        modebar=dict(bgcolor="rgba(0,0,0,0)", color="#64748b", activecolor="#34d399"),
-        xaxis=dict(
-            showgrid=False, showline=False, zeroline=False, tickfont=dict(size=11), automargin=True,
-            showspikes=True, spikemode="across", spikecolor="#334155", spikethickness=1, spikedash="dot",
-        ),
-        yaxis=dict(
-            gridcolor="rgba(148,163,184,0.12)", griddash="dot", zeroline=False, showline=False,
-            tickfont=dict(size=11), automargin=True,
-        ),
-    )
-    return fig
-
-
-def crear_grafica_temperatura(df, altura=300):
-    """Área con degradado, brillo en la línea y punto resaltado en la última lectura."""
-    x, y = df["fecha_registro"], df["temperatura_c"].astype(float)
-    verde = "52, 211, 153"
-    fig = go.Figure()
-    # Brillo (línea ancha y translúcida debajo)
-    fig.add_trace(
-        go.Scatter(x=x, y=y, mode="lines", hoverinfo="skip",
-                   line=dict(color=f"rgba({verde}, 0.16)", width=9, shape="spline"))
-    )
-    base = dict(x=x, y=y, mode="lines", name="Temperatura", hovertemplate="%{y:.1f} °C",
-                line=dict(color="#34d399", width=2.5, shape="spline"), fill="tozeroy")
-    try:
-        fig.add_trace(go.Scatter(
-            **base,
-            fillgradient=dict(type="vertical",
-                              colorscale=[[0, f"rgba({verde}, 0)"], [1, f"rgba({verde}, 0.30)"]]),
-        ))
-    except ValueError:  # versiones antiguas de Plotly sin degradado
-        fig.add_trace(go.Scatter(**base, fillcolor=f"rgba({verde}, 0.12)"))
-
-    i = x.idxmax()
-    x_ult, y_ult = x[i], float(y[i])
-    fig.add_trace(go.Scatter(x=[x_ult], y=[y_ult], mode="markers", hoverinfo="skip",
-                             marker=dict(size=24, color=f"rgba({verde}, 0.25)")))
-    fig.add_trace(go.Scatter(x=[x_ult], y=[y_ult], mode="markers", hoverinfo="skip",
-                             marker=dict(size=10, color="#34d399", line=dict(color="#ffffff", width=2))))
-    fig.add_annotation(x=x_ult, y=y_ult, text=f"<b>{y_ult:.1f} °C</b>", showarrow=False,
-                       xanchor="right", yshift=22, font=dict(color="#34d399", size=12),
-                       bgcolor=f"rgba({verde}, 0.12)", bordercolor=f"rgba({verde}, 0.4)", borderpad=4)
-    _estilo_base_grafica(fig, altura)
-    fig.update_yaxes(range=[0, max(float(y.max()) * 1.15, 1)], ticksuffix="°")
-    return fig
-
-
-def crear_grafica_lluvia(df, altura=300):
-    """Barras coloreadas por intensidad (misma paleta que la tarjeta) y marca del máximo."""
-    x, y = df["fecha_registro"], df["precipitacion_mm"].astype(float)
-    colores = [estado_lluvia(v)[2] if v > 0 else "rgba(0,0,0,0)" for v in y]
-    fig = go.Figure(
-        go.Bar(x=x, y=y, name="Precipitación", hovertemplate="%{y:.1f} mm",
-               marker=dict(color=colores, line=dict(color=colores, width=2)))
-    )
-    i = y.idxmax()
-    if y[i] > 0:
-        fig.add_annotation(x=x[i], y=float(y[i]), text=f"<b>Máx. {y[i]:.1f} mm</b>", showarrow=False,
-                           xanchor="right", yshift=18, font=dict(color=estado_lluvia(y[i])[2], size=12),
-                           bgcolor="rgba(96, 165, 250, 0.12)", bordercolor="rgba(96, 165, 250, 0.4)", borderpad=4)
-    _estilo_base_grafica(fig, altura)
-    fig.update_layout(bargap=0.15)
-    fig.update_yaxes(range=[0, max(float(y.max()) * 1.3, 1)], ticksuffix=" mm")
-    return fig
-
-
-def crear_tacometro(velocidad):
-    """Tacómetro (gauge) para la velocidad del viento."""
-    v = float(velocidad)
-    maximo = 80
-    fig = go.Figure(
-        go.Indicator(
-            mode="gauge+number",
-            value=v,
-            number={"suffix": " km/h", "font": {"size": 34, "color": "#f1f5f9"}},
-            title={"text": "<b>VELOCIDAD DEL VIENTO</b>", "font": {"size": 14, "color": "#94a3b8"}},
-            gauge={
-                "axis": {"range": [0, maximo], "dtick": 10, "tickwidth": 2, "tickcolor": "#94a3b8", "tickfont": {"color": "#94a3b8"}},
-                "bar": {"color": "rgba(0,0,0,0)"},
-                "bgcolor": "rgba(0,0,0,0)",
-                "borderwidth": 0,
-                "steps": [
-                    {"range": [0, 15], "color": "#22c55e"},
-                    {"range": [15, 30], "color": "#eab308"},
-                    {"range": [30, 50], "color": "#f97316"},
-                    {"range": [50, maximo], "color": "#dc2626"},
-                ],
-                "threshold": {
-                    "line": {"color": "#f8fafc", "width": 6},
-                    "thickness": 0.85,
-                    "value": min(v, maximo),
-                },
-            },
-        )
-    )
-    fig.update_layout(
-        height=300,
-        margin=dict(l=30, r=30, t=60, b=10),
-        paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#e2e8f0"),
-    )
-    return fig
-
-
-# --- BARRA LATERAL ---
-with st.sidebar:
-    st.markdown("## **SAVA-IoT**")
-    st.caption("Sistema de Telemetría Agrícola v2.4")
-    st.divider()
-
-    st.markdown("### Configuración de Inteligencia IA")
-    OPCIONES_MODELOS = {
-        "Llama 3.3 70B Versatile": "llama-3.3-70b-versatile",
-        "Llama 3.1 8B Instant": "llama-3.1-8b-instant",
-        "GPT-OSS 120B (OpenAI)": "openai/gpt-oss-120b",
-        "GPT-OSS 20B (OpenAI)": "openai/gpt-oss-20b",
-    }
-
-    modelo_label = st.selectbox(
-        "Modelo de Lenguaje Activo:",
-        list(OPCIONES_MODELOS.keys()),
-        index=0,
-    )
-    modelo_groq_id = OPCIONES_MODELOS[modelo_label]
-
-    st.divider()
-    st.markdown("### Estado del Sistema")
-    st.markdown("🟢 **Neon PostgreSQL:** Conectado")
-    st.markdown("🟢 **Motor de Reglas:** Activo")
-    st.markdown("🟢 **Zona Horaria:** UTC-5 (Colombia)")
-
-
-# --- ENCABEZADO PRINCIPAL ---
-robot_html = (
-    f'<img class="header-robot" src="data:image/png;base64,{ROBOT_B64}" alt="SAVA-IoT"/>'
-    if ROBOT_B64
-    else ""
-)
-
-st.markdown(
-    f"""
-    <div class="main-header">
-        <div class="header-left">{robot_html}
-            <div class="header-title-container">
-                <h1>SAVA-IOT</h1>
-                <p>Sistema autónomo de vigilancia agroclimática </p>
-            </div>
-        </div>
-        <div class="header-badge">
-            <span class="pulse-dot"></span> EN LÍNEA
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-df = cargar_datos()
-
-# Pestañas principales
-tab_monitoreo, tab_historico, tab_registros, tab_asistente = st.tabs(
-    [
-        ":material/monitoring: Monitoreo Telemétrico",
-        ":material/show_chart: Histórico",
-        ":material/table_chart: Registros",
-        ":material/smart_toy: Asistente IA Agrónomo",
-    ]
-)
-
-# ---------------------------------------------------------
-# TAB 1: MONITOREO TELEMÉTRICO
-# ---------------------------------------------------------
-with tab_monitoreo:
-    if df.empty:
-        st.info("Esperando recepción de datos telemétricos desde Neon...")
-    else:
-        ultima = df.iloc[0]
-        fecha_str = ultima["fecha_registro"].strftime("%Y-%m-%d %H:%M:%S")
-
-        st.markdown(
-            f"<div style='color: #94a3b8; font-size: 0.88rem; margin-bottom: 1.2rem;'>"
-            f"Última lectura telemétrica sincronizada: <b style='color:#e2e8f0;'>{fecha_str} (Hora Colombia)</b></div>",
-            unsafe_allow_html=True,
-        )
-
-        # Fila 1: Termómetro + Tacómetro
-        col_termo, col_viento = st.columns(2)
-
-        with col_termo:
-            with st.container(key="card_termo"):
-                st.markdown(html_termometro(ultima["temperatura_c"]), unsafe_allow_html=True)
-
-        with col_viento:
-            with st.container(key="card_viento"):
-                st.plotly_chart(
-                    crear_tacometro(ultima["rafaga_viento_kmh"]),
-                    use_container_width=True,
-                )
-
-        st.markdown("<div style='height:0.8rem;'></div>", unsafe_allow_html=True)
-
-        # Fila 2: Lluvia + Humedad + Sol
-        col_lluvia, col_hum, col_sol = st.columns(3)
-
-        with col_lluvia:
-            st.markdown(html_lluvia(ultima["precipitacion_mm"]), unsafe_allow_html=True)
-
-        with col_hum:
-            st.markdown(html_humedad(ultima["humedad_relativa_pct"]), unsafe_allow_html=True)
-
-        with col_sol:
-            st.markdown(html_sol(ultima["radiacion_solar_wm2"]), unsafe_allow_html=True)
-
-        # Validación robusta de booleano vs string
-        orden_val = ultima.get("orden_riego")
-        if isinstance(orden_val, bool):
-            riego_activo = orden_val
-        else:
-            riego_activo = str(orden_val).strip().lower() not in [
-                "false",
-                "0",
-                "none",
-                "off",
-                "no",
-                "",
-            ]
-
-        # Banner de Estado
-        st.markdown(html_banner_riego(ultima, riego_activo), unsafe_allow_html=True)
-
-# ---------------------------------------------------------
-# TAB 2: HISTÓRICO (GRÁFICAS EN UNA SOLA VISTA)
-# ---------------------------------------------------------
-with tab_historico:
-    if df.empty:
-        st.info("Esperando recepción de datos telemétricos desde Neon...")
-    else:
-        ultima = df.iloc[0]
-        subtitulo = f"Últimas {len(df)} lecturas · Hora Colombia"
-
-        col_chart1, col_chart2 = st.columns(2)
-
-        with col_chart1:
-            with st.container(key="card_hist_temp"):
-                st.markdown(
-                    html_cabecera_grafica(
-                        "M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z",
-                        "#34d399", "Evolución térmica", subtitulo,
-                        "Actual", f"{float(ultima['temperatura_c']):.1f} °C",
-                    ),
-                    unsafe_allow_html=True,
-                )
-                st.plotly_chart(
-                    crear_grafica_temperatura(df, altura=380),
-                    use_container_width=True,
-                    config=CONFIG_GRAFICA,
-                )
-
-        with col_chart2:
-            with st.container(key="card_hist_lluvia"):
-                st.markdown(
-                    html_cabecera_grafica(
-                        "M12 2.5C12 2.5 5 10 5 15a7 7 0 0 0 14 0c0-5-7-12.5-7-12.5z",
-                        "#60a5fa", "Precipitación", subtitulo,
-                        "Total del periodo", f"{float(df['precipitacion_mm'].sum()):.1f} mm",
-                    ),
-                    unsafe_allow_html=True,
-                )
-                st.plotly_chart(
-                    crear_grafica_lluvia(df, altura=380),
-                    use_container_width=True,
-                    config=CONFIG_GRAFICA,
-                )
-                st.markdown(html_leyenda_lluvia(), unsafe_allow_html=True)
-
-# ---------------------------------------------------------
-# TAB 3: REGISTROS (TABLA DETALLADA)
-# ---------------------------------------------------------
-with tab_registros:
-    if df.empty:
-        st.info("Esperando recepción de datos telemétricos desde Neon...")
-    else:
-        st.markdown(html_titulo_seccion("Registros históricos detallados"), unsafe_allow_html=True)
-        st.dataframe(df, use_container_width=True, height=520)
-
-# ---------------------------------------------------------
-# TAB 4: ASISTENTE IA AGRÓNOMO (MULTI-MODELO)
-# ---------------------------------------------------------
-with tab_asistente:
-    st.subheader("Asistente Virtual Agrónomo")
-    st.caption(f"Modelo de IA activo en Groq: **{modelo_groq_id}**")
-
-    if not GROQ_API_KEY:
-        st.warning(
-            "La variable GROQ_API_KEY no se encuentra configurada en el entorno."
-        )
-    else:
-        client = Groq(api_key=GROQ_API_KEY)
-
-        if "messages" not in st.session_state:
-            st.session_state.messages = []
-
-        zona_chat = st.container()
-        prompt = st.chat_input("Escriba su consulta agrónoma...")
-
-        with zona_chat:
-            for message in st.session_state.messages:
-                with st.chat_message(message["role"]):
-                    st.markdown(message["content"])
-
-            if prompt:
-                st.session_state.messages.append(
-                    {"role": "user", "content": prompt}
-                )
-                with st.chat_message("user"):
-                    st.markdown(prompt)
-
-                contexto_clima = "Sin datos disponibles."
-                if not df.empty:
-                    u = df.iloc[0]
-                    contexto_clima = (
-                        f"Lectura ({u['fecha_registro']}): "
-                        f"Temperatura: {u['temperatura_c']}°C, Precipitación: {u['precipitacion_mm']}mm, "
-                        f"Humedad Relativa: {u['humedad_relativa_pct']}%, Radiación Solar: {u['radiacion_solar_wm2']}W/m², "
-                        f"Estado Riego: {u.get('orden_riego', 'N/A')}, Regla: {u.get('regla_aplicada', 'N/A')}, Diagnóstico: {u.get('mensaje', '')}."
-                    )
-
-                system_prompt = (
-                    "Eres un ingeniero agrónomo consultor experto del Vivero CECAR. "
-                    f"Información telemétrica actual del vivero en hora local de Colombia: {contexto_clima}. "
-                    "Responde en un lenguaje claro, técnico, profesional y estrictamente sin utilizar ningún emoji en tu texto."
-                )
-
-                messages_for_api = [{"role": "system", "content": system_prompt}] + [
-                    {"role": m["role"], "content": m["content"]}
-                    for m in st.session_state.messages
-                ]
-
-                with st.chat_message("assistant"):
-                    try:
-                        completion = client.chat.completions.create(
-                            model=modelo_groq_id,
-                            messages=messages_for_api,
-                            temperature=0.6,
-                            max_tokens=800,
-                        )
-                        respuesta = completion.choices[0].message.content
-                        st.markdown(respuesta)
-                        st.session_state.messages.append(
-                            {"role": "assistant", "content": respuesta}
-                        )
-                    except Exception as e:
-                        st.error(
-                            f"Error al procesar la solicitud con el modelo: {e}"
-                        )
