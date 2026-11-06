@@ -4,11 +4,16 @@ Módulo cliente para la lectura telemétrica de la estación meteorológica en W
 La radiación solar y el UV se estiman con Open-Meteo (la estación no tiene esos sensores).
 """
 
+import logging
 import os
+import time
+
 import requests
 from dotenv import load_dotenv
 
 load_dotenv()
+
+log = logging.getLogger(__name__)
 
 WU_API_KEY = os.getenv("WU_API_KEY")
 WU_STATION_ID = os.getenv("WU_STATION_ID")
@@ -19,25 +24,43 @@ VIVERO_LON = float(os.getenv("VIVERO_LON", "-75.40"))
 
 
 def obtener_radiacion_open_meteo(
-    lat: float = VIVERO_LAT, lon: float = VIVERO_LON
+    lat: float = VIVERO_LAT, lon: float = VIVERO_LON, intentos: int = 3
 ) -> dict:
-    """Estima radiación solar (W/m2) e índice UV con el modelo de Open-Meteo."""
-    r = requests.get(
-        "https://api.open-meteo.com/v1/forecast",
-        params={
-            "latitude": lat,
-            "longitude": lon,
-            "current": "shortwave_radiation,uv_index",
-            "timezone": "America/Bogota",
-        },
-        timeout=10,
-    )
-    r.raise_for_status()
-    c = r.json()["current"]
-    return {
-        "radiacion_solar_wm2": float(c.get("shortwave_radiation") or 0.0),
-        "uv_index": float(c.get("uv_index") or 0.0),
-    }
+    """Estima radiación solar (W/m2) e índice UV con el modelo de Open-Meteo.
+
+    Reintenta ante errores temporales (red, 429, 5xx) y lanza RuntimeError si no
+    logra un dato válido, para que el fallo no pase desapercibido.
+    """
+    ultimo_error = None
+    for n in range(1, intentos + 1):
+        try:
+            r = requests.get(
+                "https://api.open-meteo.com/v1/forecast",
+                params={
+                    "latitude": lat,
+                    "longitude": lon,
+                    "current": "shortwave_radiation,uv_index",
+                    "timezone": "America/Bogota",
+                },
+                timeout=10,
+            )
+            r.raise_for_status()
+            c = r.json()["current"]
+
+            radiacion = c.get("shortwave_radiation")
+            if radiacion is None:  # antes se convertía en 0.0 sin avisar
+                raise ValueError(f"Open-Meteo no devolvió shortwave_radiation: {c}")
+
+            return {
+                "radiacion_solar_wm2": float(radiacion),
+                "uv_index": float(c.get("uv_index") or 0.0),
+            }
+        except Exception as e:
+            ultimo_error = e
+            if n < intentos:
+                time.sleep(1.5 * n)
+
+    raise RuntimeError(f"Open-Meteo falló tras {intentos} intentos: {ultimo_error}")
 
 
 def obtener_datos_estacion(
@@ -85,8 +108,11 @@ def obtener_datos_estacion(
     if datos["radiacion_solar_wm2"] == 0.0:
         try:
             datos.update(obtener_radiacion_open_meteo())
-        except Exception:
-            pass  # si falla, se conserva el valor de la estación
+        except Exception as e:
+            # Se conserva el 0.0 de la estación, pero ahora queda registrado el motivo
+            log.warning(
+                "No se pudo estimar la radiación con Open-Meteo; se deja en 0: %s", e
+            )
 
     return datos
 
@@ -94,3 +120,10 @@ def obtener_datos_estacion(
 def get_current_observation() -> dict:
     """Wrapper de compatibilidad para llamadas secundarias."""
     return obtener_datos_estacion()
+
+
+if __name__ == "__main__":
+    # Diagnóstico rápido: python weather_client.py
+    logging.basicConfig(level=logging.INFO)
+    print("Open-Meteo:", obtener_radiacion_open_meteo())
+    print("Estación + radiación:", obtener_datos_estacion())
