@@ -17,6 +17,12 @@ import plotly.graph_objects as go
 import psycopg2
 import streamlit as st
 
+from streamlit_autorefresh import st_autorefresh
+
+# Recargar la página automáticamente cada 60 segundos (60000 ms)
+# Mantiene viva la conexión a Neon y actualiza los indicadores visuales
+st_autorefresh(interval=60000, key="datarefresh")
+
 # Cargar variables de entorno
 load_dotenv()
 
